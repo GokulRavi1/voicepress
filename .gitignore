@@ -1,0 +1,10 @@
+# Local dev runtime (portable PHP, WordPress, SQLite DB, downloads, logs)
+dev/runtime/
+
+# Personal Claude Code settings
+.claude/settings.local.json
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.log

@@ -1,0 +1,1249 @@
+/*!
+ * VoicePress – storefront voice widget.
+ * Self-contained: system fonts only, every class prefixed "vpw-", scoped to #voicepress-widget
+ * so theme styles cannot leak in. Brand colour #5b3df5.
+ */
+
+/* ---------------------------------------------------------------- tokens */
+
+#voicepress-widget,
+.vpw-inline-btn {
+	--vpw-brand: #5b3df5;
+	--vpw-brand-dark: #4327d6;
+	--vpw-brand-deep: #2f1aa6;
+	--vpw-brand-soft: #efebff;
+	--vpw-brand-tint: #f7f5ff;
+	--vpw-grad: linear-gradient(135deg, #8b6dff 0%, #5b3df5 52%, #4026d8 100%);
+	--vpw-ink: #17133b;
+	--vpw-ink-2: #59567a;
+	--vpw-ink-3: #8a87a6;
+	--vpw-line: #e9e6f6;
+	--vpw-danger: #e5484d;
+	--vpw-danger-dark: #c9353a;
+	--vpw-font: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+}
+
+/* ---------------------------------------------------------------- reset */
+
+#voicepress-widget {
+	--vpw-level: 0;
+	position: static;
+	margin: 0;
+	padding: 0;
+	font-family: var(--vpw-font);
+	font-size: 14px;
+	font-weight: 400;
+	line-height: 1.45;
+	color: var(--vpw-ink);
+	text-align: start;
+	letter-spacing: normal;
+	text-transform: none;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+#voicepress-widget *,
+#voicepress-widget *::before,
+#voicepress-widget *::after {
+	box-sizing: border-box;
+}
+
+#voicepress-widget [hidden],
+#voicepress-widget .vpw-audio {
+	display: none !important;
+}
+
+#voicepress-widget p,
+#voicepress-widget h2 {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	font-family: var(--vpw-font);
+	letter-spacing: normal;
+	text-transform: none;
+}
+
+#voicepress-widget button,
+#voicepress-widget input {
+	margin: 0;
+	font-family: var(--vpw-font);
+	font-size: inherit;
+	line-height: inherit;
+	letter-spacing: normal;
+	text-transform: none;
+}
+
+#voicepress-widget button {
+	-webkit-appearance: none;
+	appearance: none;
+	width: auto;
+	height: auto;
+	min-width: 0;
+	min-height: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	background: none;
+	box-shadow: none;
+	color: inherit;
+	font-weight: 600;
+	text-decoration: none;
+	text-shadow: none;
+	cursor: pointer;
+	-webkit-tap-highlight-color: transparent;
+}
+
+#voicepress-widget button:focus:not(:focus-visible) {
+	outline: none;
+}
+
+#voicepress-widget button:focus-visible {
+	outline: 3px solid rgba(91, 61, 245, 0.45);
+	outline-offset: 2px;
+}
+
+#voicepress-widget .vpw-icon {
+	display: inline-flex;
+	flex: none;
+	width: 20px;
+	height: 20px;
+}
+
+#voicepress-widget .vpw-icon svg {
+	display: block;
+	width: 100%;
+	height: 100%;
+	max-width: none;
+	fill: none;
+	stroke: currentColor;
+	overflow: visible;
+}
+
+/* ---------------------------------------------------------------- launcher */
+
+#voicepress-widget .vpw-launcher {
+	position: fixed;
+	right: 24px;
+	bottom: 24px;
+	z-index: 99999;
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	height: 56px;
+	max-width: calc(100vw - 32px);
+	padding: 0 22px 0 8px;
+	border-radius: 999px;
+	background: var(--vpw-grad);
+	color: #fff;
+	font-size: 15px;
+	font-weight: 600;
+	line-height: 1;
+	white-space: nowrap;
+	box-shadow: 0 14px 34px -10px rgba(76, 46, 230, 0.7), 0 3px 8px rgba(23, 19, 59, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+	transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+#voicepress-widget .vpw-launcher::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	border-radius: inherit;
+	pointer-events: none;
+	animation: vpw-attn 2.4s ease-out 1.5s 3;
+}
+
+#voicepress-widget .vpw-launcher:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 18px 40px -10px rgba(76, 46, 230, 0.78), 0 4px 10px rgba(23, 19, 59, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+#voicepress-widget .vpw-launcher:active {
+	transform: scale(0.98);
+}
+
+#voicepress-widget .vpw-launcher:focus-visible {
+	outline-offset: 4px;
+}
+
+#voicepress-widget .vpw-launcher__icon {
+	width: 40px;
+	height: 40px;
+	padding: 10px;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.18);
+	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+}
+
+#voicepress-widget .vpw-launcher__label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+#voicepress-widget .vpw-launcher__live {
+	display: none;
+	align-items: center;
+	gap: 8px;
+	font-variant-numeric: tabular-nums;
+}
+
+/* Panel open: the launcher becomes a compact round "minimise" button. */
+#voicepress-widget.vpw-is-open .vpw-launcher {
+	width: 56px;
+	padding: 0;
+	justify-content: center;
+}
+
+#voicepress-widget.vpw-is-open .vpw-launcher__icon {
+	background: transparent;
+	box-shadow: none;
+}
+
+#voicepress-widget.vpw-is-open .vpw-launcher__label,
+#voicepress-widget.vpw-is-open .vpw-launcher__live {
+	display: none;
+}
+
+/* Minimised during a call: live badge + timer, glowing with the assistant's voice. */
+#voicepress-widget.vpw-in-call:not(.vpw-is-open) .vpw-launcher__label {
+	display: none;
+}
+
+#voicepress-widget.vpw-in-call:not(.vpw-is-open) .vpw-launcher__live {
+	display: inline-flex;
+}
+
+#voicepress-widget.vpw-in-call .vpw-launcher::before {
+	animation: none;
+	box-shadow: 0 0 0 calc(var(--vpw-level) * 10px) rgba(91, 61, 245, 0.28);
+}
+
+/* ---------------------------------------------------------------- panel */
+
+#voicepress-widget .vpw-backdrop {
+	display: none;
+}
+
+#voicepress-widget .vpw-panel {
+	position: fixed;
+	right: 24px;
+	bottom: 94px;
+	z-index: 99999;
+	display: flex;
+	flex-direction: column;
+	width: 372px;
+	max-width: calc(100vw - 32px);
+	max-height: calc(100vh - 118px);
+	max-height: calc(100dvh - 118px);
+	overflow: hidden;
+	border-radius: 16px;
+	background: #fff;
+	box-shadow: 0 30px 80px -20px rgba(37, 20, 122, 0.45), 0 12px 28px -14px rgba(23, 19, 59, 0.25), 0 0 0 1px rgba(23, 19, 59, 0.06);
+	transform-origin: 100% 100%;
+	animation: vpw-pop 0.26s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+}
+
+#voicepress-widget .vpw-header {
+	position: relative;
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: 12px;
+	padding: 18px 14px 18px 18px;
+	color: #fff;
+	background:
+		radial-gradient(120% 160% at 0% 0%, rgba(167, 139, 250, 0.9) 0%, rgba(167, 139, 250, 0) 55%),
+		radial-gradient(90% 120% at 100% 100%, rgba(59, 130, 246, 0.42) 0%, rgba(59, 130, 246, 0) 60%),
+		linear-gradient(135deg, #6a4cff 0%, #5b3df5 45%, #3a22c9 100%);
+}
+
+#voicepress-widget .vpw-avatar {
+	position: relative;
+	display: flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: 42px;
+	height: 42px;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.18);
+	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+	font-size: 17px;
+	font-weight: 700;
+	line-height: 1;
+}
+
+#voicepress-widget .vpw-avatar__dot {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	width: 11px;
+	height: 11px;
+	border-radius: 50%;
+	background: #22c55e;
+	box-shadow: 0 0 0 2px #5b3df5;
+}
+
+#voicepress-widget .vpw-heading {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+#voicepress-widget .vpw-title {
+	overflow: hidden;
+	color: #fff;
+	font-size: 16px;
+	font-weight: 700;
+	line-height: 1.25;
+	letter-spacing: -0.01em;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+#voicepress-widget .vpw-subtitle {
+	margin-top: 2px;
+	overflow: hidden;
+	color: rgba(255, 255, 255, 0.84);
+	font-size: 12.5px;
+	line-height: 1.3;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+#voicepress-widget .vpw-close {
+	display: flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: 34px;
+	height: 34px;
+	border-radius: 10px;
+	background: rgba(255, 255, 255, 0.14);
+	color: #fff;
+	transition: background-color 0.15s ease;
+}
+
+#voicepress-widget .vpw-close:hover {
+	background: rgba(255, 255, 255, 0.26);
+}
+
+#voicepress-widget .vpw-close .vpw-icon {
+	width: 18px;
+	height: 18px;
+}
+
+#voicepress-widget .vpw-body {
+	flex: 1 1 auto;
+	overflow-x: hidden;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	background: linear-gradient(180deg, #f8f6ff 0%, #ffffff 48%);
+}
+
+#voicepress-widget .vpw-view {
+	padding: 22px 22px 20px;
+}
+
+#voicepress-widget .vpw-view--call {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+}
+
+/* ---------------------------------------------------------------- stage: rings + orb */
+
+#voicepress-widget .vpw-stage {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 210px;
+	height: 210px;
+	margin: 0 auto 6px;
+}
+
+#voicepress-widget .vpw-ring {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	border-radius: 50%;
+	pointer-events: none;
+	will-change: transform, opacity;
+	animation: vpw-breathe 3.6s ease-in-out infinite;
+}
+
+#voicepress-widget .vpw-ring--1 {
+	width: 136px;
+	height: 136px;
+	margin: -68px 0 0 -68px;
+	background: rgba(91, 61, 245, 0.1);
+}
+
+#voicepress-widget .vpw-ring--2 {
+	width: 170px;
+	height: 170px;
+	margin: -85px 0 0 -85px;
+	background: rgba(91, 61, 245, 0.065);
+	box-shadow: inset 0 0 0 1px rgba(91, 61, 245, 0.1);
+	animation-delay: 0.3s;
+}
+
+#voicepress-widget .vpw-ring--3 {
+	width: 206px;
+	height: 206px;
+	margin: -103px 0 0 -103px;
+	background: radial-gradient(circle, rgba(91, 61, 245, 0) 58%, rgba(91, 61, 245, 0.09) 100%);
+	box-shadow: inset 0 0 0 1px rgba(91, 61, 245, 0.08);
+	animation-delay: 0.6s;
+}
+
+/* Connecting / ringing: ripples travel outwards. */
+#voicepress-widget[data-vpw-state="connecting"] .vpw-ring,
+#voicepress-widget[data-vpw-state="ringing"] .vpw-ring {
+	animation: vpw-ripple 1.8s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+}
+
+#voicepress-widget[data-vpw-state="connecting"] .vpw-ring--2,
+#voicepress-widget[data-vpw-state="ringing"] .vpw-ring--2 {
+	animation-delay: 0.6s;
+}
+
+#voicepress-widget[data-vpw-state="connecting"] .vpw-ring--3,
+#voicepress-widget[data-vpw-state="ringing"] .vpw-ring--3 {
+	animation-delay: 1.2s;
+}
+
+/* Live: rings follow the assistant's voice (--vpw-level, 0..1, set by widget.js). */
+#voicepress-widget[data-vpw-state="active"] .vpw-ring {
+	animation: none;
+	transition: none;
+}
+
+#voicepress-widget[data-vpw-state="active"] .vpw-ring--1 {
+	transform: scale(calc(1 + var(--vpw-level) * 0.32));
+}
+
+#voicepress-widget[data-vpw-state="active"] .vpw-ring--2 {
+	transform: scale(calc(1 + var(--vpw-level) * 0.26));
+	opacity: calc(0.65 + var(--vpw-level) * 0.35);
+}
+
+#voicepress-widget[data-vpw-state="active"] .vpw-ring--3 {
+	transform: scale(calc(1 + var(--vpw-level) * 0.16));
+	opacity: calc(0.4 + var(--vpw-level) * 0.6);
+}
+
+#voicepress-widget.vpw-is-muted .vpw-ring {
+	opacity: 0.35;
+}
+
+#voicepress-widget[data-vpw-state="error"] .vpw-ring {
+	animation: none;
+	opacity: 0.5;
+}
+
+#voicepress-widget .vpw-orb {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 108px;
+	height: 108px;
+	border-radius: 50%;
+	background: var(--vpw-grad);
+	color: #fff;
+	box-shadow: 0 18px 40px -14px rgba(76, 46, 230, 0.85), inset 0 2px 0 rgba(255, 255, 255, 0.28), inset 0 -6px 14px rgba(32, 14, 140, 0.35);
+	transition: transform 0.18s ease, box-shadow 0.2s ease, filter 0.2s ease, background-color 0.2s ease;
+}
+
+#voicepress-widget .vpw-orb:hover {
+	transform: scale(1.04);
+}
+
+#voicepress-widget .vpw-orb:active {
+	transform: scale(0.97);
+}
+
+#voicepress-widget .vpw-orb:focus-visible {
+	outline-offset: 6px;
+}
+
+#voicepress-widget .vpw-orb[aria-disabled="true"] {
+	cursor: default;
+	transform: none;
+}
+
+#voicepress-widget .vpw-orb__icon {
+	width: 38px;
+	height: 38px;
+}
+
+#voicepress-widget .vpw-orb__icon svg {
+	stroke-width: 1.8;
+}
+
+#voicepress-widget[data-vpw-state="idle"] .vpw-orb {
+	animation: vpw-glow 2.8s ease-in-out infinite;
+}
+
+/* Spinner arc while connecting / ringing. */
+#voicepress-widget .vpw-orb::after {
+	content: "";
+	position: absolute;
+	top: -7px;
+	right: -7px;
+	bottom: -7px;
+	left: -7px;
+	border: 3px solid transparent;
+	border-top-color: var(--vpw-brand);
+	border-right-color: rgba(91, 61, 245, 0.35);
+	border-radius: 50%;
+	opacity: 0;
+	pointer-events: none;
+}
+
+#voicepress-widget[data-vpw-state="connecting"] .vpw-orb::after,
+#voicepress-widget[data-vpw-state="ringing"] .vpw-orb::after {
+	opacity: 1;
+	animation: vpw-spin 0.9s linear infinite;
+}
+
+/* Live: equaliser bars replace the mic icon; a halo follows the voice. */
+#voicepress-widget .vpw-bars {
+	display: none;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
+	height: 44px;
+}
+
+#voicepress-widget .vpw-bar {
+	display: block;
+	width: 6px;
+	height: 44px;
+	border-radius: 6px;
+	background: #fff;
+	transform: scaleY(0.2);
+	transform-origin: 50% 50%;
+	will-change: transform;
+}
+
+#voicepress-widget[data-vpw-state="active"] .vpw-bars {
+	display: flex;
+}
+
+#voicepress-widget[data-vpw-state="active"] .vpw-orb__icon {
+	display: none;
+}
+
+#voicepress-widget[data-vpw-state="active"] .vpw-orb {
+	box-shadow: 0 0 0 calc(var(--vpw-level) * 12px) rgba(91, 61, 245, 0.16), 0 18px 40px -14px rgba(76, 46, 230, 0.85), inset 0 2px 0 rgba(255, 255, 255, 0.28), inset 0 -6px 14px rgba(32, 14, 140, 0.35);
+}
+
+#voicepress-widget.vpw-is-muted .vpw-orb {
+	filter: saturate(0.35) brightness(0.95);
+}
+
+#voicepress-widget[data-vpw-state="error"] .vpw-orb {
+	background: #fff;
+	color: var(--vpw-brand);
+	box-shadow: 0 14px 34px -16px rgba(76, 46, 230, 0.55), inset 0 0 0 2px rgba(91, 61, 245, 0.2);
+}
+
+/* ---------------------------------------------------------------- status */
+
+#voicepress-widget .vpw-status {
+	max-width: 300px;
+	margin: 4px auto 0;
+}
+
+#voicepress-widget .vpw-status__title {
+	color: var(--vpw-ink);
+	font-size: 18px;
+	font-weight: 700;
+	line-height: 1.3;
+	letter-spacing: -0.01em;
+}
+
+#voicepress-widget .vpw-status__text {
+	margin-top: 6px;
+	color: var(--vpw-ink-2);
+	font-size: 14px;
+	line-height: 1.5;
+}
+
+#voicepress-widget .vpw-live {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	margin-top: 14px;
+}
+
+#voicepress-widget .vpw-timer,
+#voicepress-widget .vpw-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 26px;
+	padding: 0 11px;
+	border-radius: 999px;
+	font-size: 12.5px;
+	font-weight: 600;
+	line-height: 1;
+	white-space: nowrap;
+}
+
+#voicepress-widget .vpw-timer {
+	background: #fff;
+	color: var(--vpw-ink);
+	box-shadow: inset 0 0 0 1px var(--vpw-line);
+	font-variant-numeric: tabular-nums;
+}
+
+#voicepress-widget .vpw-chip {
+	background: var(--vpw-brand-soft);
+	color: var(--vpw-brand-dark);
+	transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+#voicepress-widget.vpw-is-speaking .vpw-chip {
+	background: var(--vpw-brand);
+	color: #fff;
+}
+
+#voicepress-widget.vpw-is-muted .vpw-chip {
+	background: #2a2550;
+	color: #fff;
+}
+
+#voicepress-widget .vpw-dot {
+	display: inline-block;
+	flex: none;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--vpw-danger);
+	animation: vpw-blink 1.4s ease-in-out infinite;
+}
+
+#voicepress-widget .vpw-launcher .vpw-dot {
+	background: #ff6b70;
+	box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.22);
+}
+
+/* ---------------------------------------------------------------- buttons */
+
+#voicepress-widget .vpw-controls,
+#voicepress-widget .vpw-actions {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 10px;
+	width: 100%;
+	margin-top: 18px;
+}
+
+#voicepress-widget .vpw-actions {
+	flex-direction: column;
+	align-items: stretch;
+	max-width: 260px;
+}
+
+#voicepress-widget .vpw-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	height: 44px;
+	padding: 0 18px;
+	border-radius: 12px;
+	font-size: 14px;
+	font-weight: 600;
+	line-height: 1;
+	white-space: nowrap;
+	transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+}
+
+#voicepress-widget .vpw-btn .vpw-icon {
+	width: 18px;
+	height: 18px;
+}
+
+#voicepress-widget .vpw-btn:hover {
+	transform: translateY(-1px);
+}
+
+#voicepress-widget .vpw-btn:active {
+	transform: none;
+}
+
+#voicepress-widget .vpw-btn:disabled {
+	opacity: 0.6;
+	cursor: default;
+	transform: none;
+}
+
+#voicepress-widget .vpw-btn--primary {
+	background: var(--vpw-grad);
+	color: #fff;
+	box-shadow: 0 12px 24px -12px rgba(76, 46, 230, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+#voicepress-widget .vpw-btn--soft {
+	background: #fff;
+	color: var(--vpw-brand-dark);
+	box-shadow: inset 0 0 0 1px #dcd6f7;
+}
+
+#voicepress-widget .vpw-btn--soft:hover {
+	background: var(--vpw-brand-tint);
+}
+
+#voicepress-widget .vpw-btn--danger {
+	background: var(--vpw-danger);
+	color: #fff;
+	box-shadow: 0 12px 24px -12px rgba(229, 72, 77, 0.9);
+}
+
+#voicepress-widget .vpw-btn--danger:hover {
+	background: var(--vpw-danger-dark);
+}
+
+#voicepress-widget .vpw-btn--block {
+	display: flex;
+	width: 100%;
+}
+
+#voicepress-widget .vpw-controls .vpw-btn {
+	flex: 1 1 0;
+	max-width: 156px;
+}
+
+#voicepress-widget .vpw-mute.vpw-is-on {
+	background: #2a2550;
+	color: #fff;
+	box-shadow: none;
+}
+
+#voicepress-widget .vpw-sound {
+	margin-top: 14px;
+}
+
+#voicepress-widget .vpw-note {
+	display: inline-flex;
+	align-items: flex-start;
+	gap: 6px;
+	max-width: 300px;
+	margin-top: 18px;
+	color: var(--vpw-ink-3);
+	font-size: 12px;
+	line-height: 1.45;
+	text-align: start;
+}
+
+#voicepress-widget .vpw-note .vpw-icon {
+	width: 14px;
+	height: 14px;
+	margin-top: 1px;
+}
+
+/* ---------------------------------------------------------------- call-back form */
+
+#voicepress-widget .vpw-view__title {
+	color: var(--vpw-ink);
+	font-size: 18px;
+	font-weight: 700;
+	line-height: 1.3;
+	letter-spacing: -0.01em;
+}
+
+#voicepress-widget .vpw-view__text {
+	margin: 6px 0 18px;
+	color: var(--vpw-ink-2);
+	font-size: 14px;
+	line-height: 1.5;
+}
+
+#voicepress-widget .vpw-field {
+	margin: 0 0 12px;
+}
+
+#voicepress-widget .vpw-field__label {
+	display: block;
+	margin: 0 0 6px;
+	color: var(--vpw-ink-2);
+	font-size: 12.5px;
+	font-weight: 600;
+	line-height: 1.3;
+}
+
+#voicepress-widget .vpw-input {
+	-webkit-appearance: none;
+	appearance: none;
+	display: block;
+	width: 100%;
+	height: 46px;
+	margin: 0;
+	padding: 0 14px;
+	border: 1px solid #dad6ec;
+	border-radius: 12px;
+	background: #fff;
+	color: var(--vpw-ink);
+	font-size: 16px;
+	line-height: normal;
+	box-shadow: none;
+	outline: none;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+#voicepress-widget .vpw-input::placeholder {
+	color: var(--vpw-ink-3);
+	opacity: 1;
+}
+
+#voicepress-widget .vpw-input:focus {
+	border-color: var(--vpw-brand);
+	outline: 2px solid transparent; /* Visible in forced-colors mode; the ring below is the visual cue. */
+	box-shadow: 0 0 0 4px rgba(91, 61, 245, 0.18);
+}
+
+#voicepress-widget .vpw-input[aria-invalid="true"] {
+	border-color: var(--vpw-danger);
+	box-shadow: 0 0 0 4px rgba(229, 72, 77, 0.12);
+}
+
+#voicepress-widget .vpw-form-msg {
+	margin: 2px 0 12px;
+	color: var(--vpw-ink-2);
+	font-size: 13px;
+	line-height: 1.4;
+}
+
+#voicepress-widget .vpw-form-msg:empty {
+	display: none;
+}
+
+#voicepress-widget .vpw-form-msg.vpw-is-error {
+	color: var(--vpw-danger-dark);
+}
+
+#voicepress-widget .vpw-view--callback .vpw-btn--block {
+	margin-top: 6px;
+}
+
+#voicepress-widget .vpw-view--done {
+	padding-top: 30px;
+	text-align: center;
+}
+
+#voicepress-widget .vpw-done-badge {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 72px;
+	height: 72px;
+	margin: 0 auto 16px;
+	border-radius: 50%;
+	background: linear-gradient(135deg, #34d399, #16a34a);
+	color: #fff;
+	box-shadow: 0 16px 34px -14px rgba(22, 163, 74, 0.8);
+}
+
+#voicepress-widget .vpw-done-badge .vpw-icon {
+	width: 30px;
+	height: 30px;
+	animation: vpw-wiggle 1.4s ease-in-out infinite;
+}
+
+#voicepress-widget .vpw-view--done .vpw-view__text {
+	margin-bottom: 20px;
+}
+
+/* ---------------------------------------------------------------- footer */
+
+#voicepress-widget .vpw-footer {
+	display: flex;
+	flex: none;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 12px 18px;
+	border-top: 1px solid var(--vpw-line);
+	background: #fff;
+}
+
+#voicepress-widget .vpw-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 2px;
+	border-radius: 6px;
+	color: var(--vpw-brand-dark);
+	font-size: 13px;
+	font-weight: 600;
+	line-height: 1.2;
+}
+
+#voicepress-widget .vpw-link:hover {
+	color: var(--vpw-brand-deep);
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+#voicepress-widget .vpw-link .vpw-icon {
+	width: 16px;
+	height: 16px;
+}
+
+#voicepress-widget .vpw-brand {
+	margin-left: auto;
+	color: var(--vpw-ink-3);
+	font-size: 11.5px;
+	white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- shortcode button */
+
+button.vpw-inline-btn.vpw-inline-btn {
+	-webkit-appearance: none;
+	appearance: none;
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	width: auto;
+	height: auto;
+	min-height: 48px;
+	margin: 0;
+	padding: 6px 22px 6px 6px;
+	border: 0;
+	border-radius: 999px;
+	background: var(--vpw-grad);
+	color: #fff;
+	font-family: var(--vpw-font);
+	font-size: 15px;
+	font-weight: 600;
+	line-height: 1.2;
+	letter-spacing: normal;
+	text-transform: none;
+	text-decoration: none;
+	text-shadow: none;
+	white-space: nowrap;
+	vertical-align: middle;
+	cursor: pointer;
+	box-shadow: 0 12px 26px -12px rgba(76, 46, 230, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+	transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+button.vpw-inline-btn.vpw-inline-btn:hover,
+button.vpw-inline-btn.vpw-inline-btn:focus {
+	background: var(--vpw-grad);
+	color: #fff;
+	transform: translateY(-1px);
+	box-shadow: 0 16px 30px -12px rgba(76, 46, 230, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+button.vpw-inline-btn.vpw-inline-btn:focus:not(:focus-visible) {
+	outline: none;
+}
+
+button.vpw-inline-btn.vpw-inline-btn:focus-visible {
+	outline: 3px solid rgba(91, 61, 245, 0.45);
+	outline-offset: 3px;
+}
+
+.vpw-inline-btn .vpw-inline-btn__icon {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: 36px;
+	height: 36px;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.18);
+	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+}
+
+.vpw-inline-btn .vpw-inline-btn__icon svg {
+	display: block;
+	width: 18px;
+	height: 18px;
+	max-width: none;
+	fill: none;
+	stroke: currentColor;
+}
+
+/* ---------------------------------------------------------------- RTL */
+
+.rtl #voicepress-widget .vpw-launcher,
+.rtl #voicepress-widget .vpw-panel {
+	right: auto;
+	left: 24px;
+}
+
+.rtl #voicepress-widget .vpw-launcher {
+	padding: 0 8px 0 22px;
+}
+
+.rtl #voicepress-widget .vpw-panel {
+	transform-origin: 0 100%;
+}
+
+.rtl #voicepress-widget .vpw-header {
+	padding: 18px 18px 18px 14px;
+}
+
+.rtl #voicepress-widget .vpw-brand {
+	margin-right: auto;
+	margin-left: 0;
+}
+
+.rtl button.vpw-inline-btn.vpw-inline-btn {
+	padding: 6px 6px 6px 22px;
+}
+
+/* ---------------------------------------------------------------- mobile: bottom sheet */
+
+@media (max-width: 480px) {
+	#voicepress-widget .vpw-launcher {
+		right: 16px;
+		bottom: 16px;
+		height: 52px;
+		padding: 0 18px 0 6px;
+		font-size: 14px;
+	}
+
+	#voicepress-widget.vpw-is-open .vpw-launcher {
+		display: none;
+	}
+
+	#voicepress-widget .vpw-backdrop {
+		position: fixed;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		left: 0;
+		z-index: 99998;
+		display: block;
+		background: rgba(15, 10, 40, 0.45);
+		-webkit-backdrop-filter: blur(2px);
+		backdrop-filter: blur(2px);
+		animation: vpw-fade 0.2s ease both;
+	}
+
+	#voicepress-widget .vpw-panel {
+		right: 0;
+		bottom: 0;
+		left: 0;
+		width: 100%;
+		max-width: none;
+		max-height: 88vh;
+		max-height: 88dvh;
+		padding-bottom: env(safe-area-inset-bottom, 0px);
+		border-radius: 20px 20px 0 0;
+		transform-origin: 50% 100%;
+		animation: vpw-sheet 0.3s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+	}
+
+	#voicepress-widget .vpw-header {
+		padding-top: 26px;
+	}
+
+	#voicepress-widget .vpw-header::before {
+		content: "";
+		position: absolute;
+		top: 9px;
+		left: 50%;
+		width: 40px;
+		height: 4px;
+		margin-left: -20px;
+		border-radius: 4px;
+		background: rgba(255, 255, 255, 0.45);
+	}
+
+	#voicepress-widget .vpw-stage {
+		width: 196px;
+		height: 196px;
+	}
+
+	.rtl #voicepress-widget .vpw-launcher {
+		right: auto;
+		left: 16px;
+		padding: 0 6px 0 18px;
+	}
+
+	.rtl #voicepress-widget .vpw-panel {
+		right: 0;
+		left: 0;
+	}
+}
+
+/* ---------------------------------------------------------------- accessibility */
+
+@media (prefers-reduced-motion: reduce) {
+	#voicepress-widget *,
+	#voicepress-widget *::before,
+	#voicepress-widget *::after,
+	.vpw-inline-btn {
+		animation: none !important;
+		transition: none !important;
+	}
+
+	#voicepress-widget .vpw-ring,
+	#voicepress-widget[data-vpw-state="active"] .vpw-ring--1,
+	#voicepress-widget[data-vpw-state="active"] .vpw-ring--2,
+	#voicepress-widget[data-vpw-state="active"] .vpw-ring--3 {
+		transform: none;
+	}
+
+	/* Without movement, the voice level is shown through ring opacity only. */
+	#voicepress-widget[data-vpw-state="active"] .vpw-ring--2,
+	#voicepress-widget[data-vpw-state="active"] .vpw-ring--3 {
+		opacity: calc(0.3 + var(--vpw-level) * 0.7);
+	}
+
+	#voicepress-widget .vpw-launcher:hover,
+	#voicepress-widget .vpw-orb:hover,
+	#voicepress-widget .vpw-btn:hover,
+	button.vpw-inline-btn.vpw-inline-btn:hover {
+		transform: none;
+	}
+}
+
+@media (forced-colors: active) {
+	#voicepress-widget .vpw-launcher,
+	#voicepress-widget .vpw-orb,
+	#voicepress-widget .vpw-btn,
+	#voicepress-widget .vpw-panel,
+	button.vpw-inline-btn.vpw-inline-btn {
+		border: 2px solid ButtonText;
+	}
+
+	#voicepress-widget .vpw-bar {
+		background: ButtonText;
+	}
+}
+
+@media print {
+	#voicepress-widget,
+	.vpw-inline-btn {
+		display: none !important;
+	}
+}
+
+/* ---------------------------------------------------------------- keyframes */
+
+@keyframes vpw-pop {
+	from {
+		opacity: 0;
+		transform: translateY(14px) scale(0.96);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+@keyframes vpw-sheet {
+	from {
+		transform: translateY(100%);
+	}
+	to {
+		transform: none;
+	}
+}
+
+@keyframes vpw-fade {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes vpw-attn {
+	0% {
+		box-shadow: 0 0 0 0 rgba(91, 61, 245, 0.55);
+	}
+	70% {
+		box-shadow: 0 0 0 18px rgba(91, 61, 245, 0);
+	}
+	100% {
+		box-shadow: 0 0 0 0 rgba(91, 61, 245, 0);
+	}
+}
+
+@keyframes vpw-breathe {
+	0%,
+	100% {
+		transform: scale(0.96);
+		opacity: 0.75;
+	}
+	50% {
+		transform: scale(1.04);
+		opacity: 1;
+	}
+}
+
+@keyframes vpw-ripple {
+	0% {
+		transform: scale(0.72);
+		opacity: 0.95;
+	}
+	100% {
+		transform: scale(1.18);
+		opacity: 0;
+	}
+}
+
+@keyframes vpw-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@keyframes vpw-blink {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.3;
+	}
+}
+
+@keyframes vpw-glow {
+	0%,
+	100% {
+		box-shadow: 0 18px 40px -14px rgba(76, 46, 230, 0.85), 0 0 0 0 rgba(91, 61, 245, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.28), inset 0 -6px 14px rgba(32, 14, 140, 0.35);
+	}
+	50% {
+		box-shadow: 0 18px 40px -14px rgba(76, 46, 230, 0.85), 0 0 0 14px rgba(91, 61, 245, 0), inset 0 2px 0 rgba(255, 255, 255, 0.28), inset 0 -6px 14px rgba(32, 14, 140, 0.35);
+	}
+}
+
+@keyframes vpw-wiggle {
+	0%,
+	60%,
+	100% {
+		transform: rotate(0);
+	}
+	10% {
+		transform: rotate(-14deg);
+	}
+	20% {
+		transform: rotate(12deg);
+	}
+	30% {
+		transform: rotate(-10deg);
+	}
+	40% {
+		transform: rotate(6deg);
+	}
+}
