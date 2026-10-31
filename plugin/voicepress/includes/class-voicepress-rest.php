@@ -153,6 +153,25 @@ class VoicePress_REST {
 	}
 
 	/**
+	 * The "language" param of a request (query, form or JSON body) when it is an enabled language, else ''.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return string
+	 */
+	public static function requested_language( WP_REST_Request $request ) {
+		if ( ! class_exists( 'VoicePress_Languages' ) ) {
+			return '';
+		}
+		$raw = $request->get_param( 'language' );
+		if ( null === $raw ) {
+			$json = $request->get_json_params();
+			$raw  = is_array( $json ) && isset( $json['language'] ) ? $json['language'] : null;
+		}
+		$code = VoicePress_Languages::sanitize_code( is_scalar( $raw ) ? (string) $raw : '' );
+		return ( '' !== $code && VoicePress_Languages::is_enabled( $code ) ) ? $code : '';
+	}
+
+	/**
 	 * Is this request signed with the VoicePress secret (Bearer header or vp_token query arg)?
 	 *
 	 * @param WP_REST_Request $request Request.
@@ -1222,7 +1241,19 @@ class VoicePress_REST {
 			}
 		}
 
-		$session = $client->mint_web_session( $agent_id, $user_data );
+		// Language picked in the widget (validated against the enabled languages), else the default language.
+		$language   = self::requested_language( $request );
+		$language   = '' !== $language ? $language : ( class_exists( 'VoicePress_Languages' ) ? VoicePress_Languages::default_language() : 'en' );
+		$agent_data = class_exists( 'VoicePress_Languages' ) ? VoicePress_Languages::agent_data( $agent_id, $language ) : array();
+		// Without agent_data the call starts in the agent's default language, English.
+		$user_data['call_language'] = empty( $agent_data ) ? 'en' : $language;
+
+		$session = $client->mint_web_session( $agent_id, $user_data, $agent_data );
+		if ( ! empty( $agent_data ) && VoicePress_Calls::is_language_rejection( $session ) ) {
+			VoicePress_Languages::forget_agent( $agent_id );
+			$user_data['call_language'] = 'en';
+			$session                    = $client->mint_web_session( $agent_id, $user_data );
+		}
 		if ( is_wp_error( $session ) || ! is_array( $session ) ) {
 			$detail = is_wp_error( $session ) ? $session->get_error_message() : 'Unexpected response';
 			self::log( 'Web session mint failed: ' . $detail );
@@ -1427,6 +1458,8 @@ class VoicePress_REST {
 			'customer_context' => (string) VoicePress_Frontend::customer_context_for_phone( $phone, $name ),
 			'channel'          => 'phone',
 		);
+		// Language picked in the widget ('' → the order's language or the default language).
+		$args['language'] = self::requested_language( $request );
 
 		$call = VoicePress_Calls::place_call( 'support_callback', $args );
 		if ( is_wp_error( $call ) ) {
@@ -1468,7 +1501,14 @@ class VoicePress_REST {
 		}
 		$order_id = absint( $request->get_param( 'order_id' ) );
 
-		return self::call_result( VoicePress_Calls::test_call( $use_case, $phone, $order_id ) );
+		// Optional language ('' or 'auto' = the order's language or the default language).
+		$raw_language = $request->get_param( 'language' );
+		$language     = self::requested_language( $request );
+		if ( '' === $language && null !== $raw_language && ! in_array( strtolower( trim( is_scalar( $raw_language ) ? (string) $raw_language : 'invalid' ) ), array( '', 'auto' ), true ) ) {
+			return new WP_Error( 'voicepress_invalid_language', __( 'This language is not turned on. Enable it in VoicePress → Settings → Languages.', 'voicepress' ), array( 'status' => 400 ) );
+		}
+
+		return self::call_result( VoicePress_Calls::test_call( $use_case, $phone, $order_id, $language ) );
 	}
 
 	/**
@@ -1865,6 +1905,18 @@ class VoicePress_REST {
 		$row['time_ago']       = ! empty( $row['created_at'] ) ? VoicePress_Helpers::human_time( (string) $row['created_at'] ) : '';
 		$row['has_recording']  = ! empty( $row['recording_url'] );
 		$row['is_terminal']    = in_array( $status, (array) VoicePress_Calls::TERMINAL, true );
+
+		// Language the call started in (user_data.call_language) for the language chip.
+		$user_data = isset( $row['user_data'] ) ? $row['user_data'] : array();
+		if ( is_string( $user_data ) ) {
+			$user_data = json_decode( $user_data, true );
+		}
+		$language              = ( is_array( $user_data ) && isset( $user_data['call_language'] ) && class_exists( 'VoicePress_Languages' ) ) ? VoicePress_Languages::sanitize_code( $user_data['call_language'] ) : '';
+		$row['call_language']  = $language;
+		$row['language_label'] = '' !== $language ? VoicePress_Languages::label( $language ) : '';
+		$row['language_name']  = '' !== $language ? VoicePress_Languages::name( $language ) : '';
+		$row['language_short'] = '' !== $language ? VoicePress_Languages::native( $language ) : '';
+		$row['language_html']  = '' !== $language ? VoicePress_Languages::html_lang( $language ) : '';
 		return $row;
 	}
 

@@ -22,6 +22,7 @@
 	var TERMINAL = Array.isArray(VP.terminal) && VP.terminal.length ? VP.terminal : ['completed', 'no-answer', 'busy', 'failed', 'canceled', 'stopped', 'error', 'balance-low', 'skipped'];
 	var FAILED = ['failed', 'error', 'skipped', 'balance-low', 'canceled', 'stopped'];
 	var POLL_MS = Math.max(5000, parseInt(VP.pollInterval, 10) || 10000);
+	var MULTILINGUAL = !!VP.multilingual;
 
 	/* ------------------------------------------------------------------
 	 * Small helpers
@@ -246,6 +247,14 @@
 	function useCaseHtml(useCase) {
 		var icon = USE_CASE_ICONS[useCase] || 'dashicons-phone';
 		return '<span class="vp-usecase"><span class="dashicons ' + esc(icon) + '" aria-hidden="true"></span><span>' + esc(useCaseLabel(useCase)) + '</span></span>';
+	}
+
+	/** Language the call started in (user_data.call_language, labelled by admin/call responses). */
+	function langChipHtml(call) {
+		if (!call || !call.call_language || !call.language_short || (call.call_language === 'en' && !MULTILINGUAL)) {
+			return '';
+		}
+		return ' <span class="vp-lang-chip" lang="' + esc(call.language_html || call.call_language) + '" title="' + esc(call.language_name || '') + '">' + esc(call.language_short) + '</span>';
 	}
 
 	function orderLinkHtml(orderId) {
@@ -653,7 +662,7 @@
 		var url = callUrl(call.id);
 		return '<tr class="vp-row-new" data-vp-call="' + esc(call.id) + '" data-vp-status="' + esc(call.status || 'queued') + '" data-href="' + esc(url) + '">' +
 			'<td><a class="vp-row-link" href="' + esc(url) + '">' + personHtml(call) + '</a></td>' +
-			'<td>' + useCaseHtml(call.use_case) + '</td>' +
+			'<td>' + useCaseHtml(call.use_case) + langChipHtml(call) + '</td>' +
 			'<td class="vp-hide-sm">' + orderLinkHtml(call.order_id) + '</td>' +
 			'<td>' + statusBadgeHtml(call) + '</td>' +
 			'<td><span class="vp-outcome" data-vp-field="outcome">' + outcomeInnerHtml(call) + '</span></td>' +
@@ -686,6 +695,14 @@
 		if (saved && !$phone.val()) {
 			$phone.val(saved);
 		}
+		var $language = $form.find('[name="language"]');
+		var savedLanguage = storage('get', 'vp_test_language');
+		if (savedLanguage && $language.find('option').filter(function () { return this.value === savedLanguage; }).length) {
+			$language.val(savedLanguage);
+		}
+		$language.on('change', function () {
+			storage('set', 'vp_test_language', String($language.val() || ''));
+		});
 
 		function syncScenario() {
 			var $checked = $form.find('[name="use_case"]:checked');
@@ -712,6 +729,10 @@
 			var payload = { phone: phone, use_case: useCase };
 			if (orderId && !$orderField.prop('hidden')) {
 				payload.order_id = orderId;
+			}
+			var language = String($form.find('[name="language"]').val() || '');
+			if (language) {
+				payload.language = language;
 			}
 			setLoading($btn, true);
 			showResult($out, 'loading', esc(t('calling', 'Placing your call…')));
@@ -1253,6 +1274,10 @@
 		calls.slice(0, 10).forEach(function (c) {
 			c = c || {};
 			var meta = [];
+			var lang = langChipHtml(c);
+			if (lang) {
+				meta.push(lang);
+			}
 			var when = c.time_ago || relTime(c.created_at);
 			if (when) {
 				meta.push(esc(when));

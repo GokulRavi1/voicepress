@@ -217,23 +217,44 @@ class VoicePress_Frontend {
 		$agent = self::agent_name();
 		$ns    = defined( 'VOICEPRESS_REST_NS' ) ? VOICEPRESS_REST_NS : 'voicepress/v1';
 
+		$languages = $widget ? self::widget_languages() : array();
+
 		return array(
-			'rest'        => esc_url_raw( rest_url( $ns . '/' ) ),
-			'nonce'       => wp_create_nonce( 'wp_rest' ),
-			'label'       => self::widget_label(),
-			'storeName'   => $store,
-			'agentName'   => $agent,
-			'context'     => self::page_context(),
-			'isCheckout'  => function_exists( 'is_checkout' ) && is_checkout(),
-			'widget'      => (bool) $widget,
-			'capture'     => (bool) $capture,
-			'captureOnly' => $capture && ! $widget,
-			'prefill'     => $widget ? self::prefill() : array(
+			'rest'            => esc_url_raw( rest_url( $ns . '/' ) ),
+			'nonce'           => wp_create_nonce( 'wp_rest' ),
+			'label'           => self::widget_label(),
+			'storeName'       => $store,
+			'agentName'       => $agent,
+			'context'         => self::page_context(),
+			'isCheckout'      => function_exists( 'is_checkout' ) && is_checkout(),
+			'widget'          => (bool) $widget,
+			'capture'         => (bool) $capture,
+			'captureOnly'     => $capture && ! $widget,
+			'prefill'         => $widget ? self::prefill() : array(
 				'name'  => '',
 				'phone' => '',
 			),
-			'i18n'        => $widget ? self::strings( $store, $agent ) : array(),
+			// [ [code, native name, English name], … ] — empty unless the agents speak several languages.
+			'languages'       => $languages,
+			'defaultLanguage' => ( $languages && class_exists( 'VoicePress_Languages' ) ) ? VoicePress_Languages::default_language() : 'en',
+			'i18n'            => $widget ? self::strings( $store, $agent, ! empty( $languages ) ) : array(),
 		);
+	}
+
+	/**
+	 * Languages for the widget's language chips: [ [code, native, name], … ] ([] when single-language).
+	 *
+	 * @return array[]
+	 */
+	private static function widget_languages() {
+		if ( ! class_exists( 'VoicePress_Languages' ) || ! VoicePress_Languages::is_multilingual() ) {
+			return array();
+		}
+		$languages = array();
+		foreach ( VoicePress_Languages::enabled() as $code ) {
+			$languages[] = array( $code, VoicePress_Languages::native( $code ), VoicePress_Languages::name( $code ) );
+		}
+		return $languages;
 	}
 
 	/**
@@ -315,17 +336,23 @@ class VoicePress_Frontend {
 	/**
 	 * Translatable UI strings for widget.js (store / assistant names already filled in).
 	 *
-	 * @param string $store Store name.
-	 * @param string $agent Assistant name.
+	 * @param string $store        Store name.
+	 * @param string $agent        Assistant name.
+	 * @param bool   $multilingual Whether the visitor can pick a language.
 	 * @return array
 	 */
-	private static function strings( $store, $agent ) {
+	private static function strings( $store, $agent, $multilingual = false ) {
 		return array(
 			'label'               => self::widget_label(),
 			/* translators: %s: store name. */
 			'title'               => sprintf( __( 'Talk to %s', 'voicepress' ), $store ),
-			/* translators: %s: voice assistant name, e.g. Riya. */
-			'subtitle'            => sprintf( __( '%s · AI voice assistant · English', 'voicepress' ), $agent ),
+			'subtitle'            => $multilingual
+				/* translators: %s: voice assistant name, e.g. Riya. */
+				? sprintf( __( '%s · AI voice assistant', 'voicepress' ), $agent )
+				/* translators: %s: voice assistant name, e.g. Riya. */
+				: sprintf( __( '%s · AI voice assistant · English', 'voicepress' ), $agent ),
+			'language'            => __( 'Language', 'voicepress' ),
+			'languageHint'        => __( 'Speak in', 'voicepress' ),
 			'minimize'            => __( 'Minimize', 'voicepress' ),
 			'liveCall'            => __( 'Voice call in progress. Open the call panel', 'voicepress' ),
 			'live'                => __( 'Live', 'voicepress' ),

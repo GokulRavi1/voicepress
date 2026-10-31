@@ -238,6 +238,7 @@ class VoicePress_Admin {
 			'bolnaAgentUrl' => 'https://platform.bolna.ai/agent/',
 			'orderUrl'      => self::order_url_template(),
 			'currency'      => self::currency_format(),
+			'multilingual'  => self::is_multilingual(),
 			'i18n'          => self::js_strings(),
 		);
 	}
@@ -771,7 +772,7 @@ class VoicePress_Admin {
 		?>
 		<tr data-vp-call="<?php echo esc_attr( $call['id'] ); ?>" data-vp-status="<?php echo esc_attr( $call['status'] ); ?>" data-href="<?php echo esc_url( $url ); ?>">
 			<td><a class="vp-row-link" href="<?php echo esc_url( $url ); ?>"><?php echo self::person_html( $call ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in builder. ?></a></td>
-			<td><?php echo self::use_case_html( $call['use_case'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in builder. ?></td>
+			<td><?php echo self::use_case_html( $call['use_case'] ) . self::language_chip( $call ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in builder. ?></td>
 			<td class="vp-hide-sm"><?php echo self::order_link( $call['order_id'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in builder. ?></td>
 			<td><?php echo self::status_badge( $call['status'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in builder. ?></td>
 			<td><?php echo self::outcome_html( $call ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in builder. ?></td>
@@ -835,6 +836,18 @@ class VoicePress_Admin {
 							<label class="vp-label" for="vp-test-order"><?php esc_html_e( 'Order ID', 'voicepress' ); ?> <span class="vp-optional"><?php esc_html_e( 'optional', 'voicepress' ); ?></span></label>
 							<input type="number" id="vp-test-order" name="order_id" class="vp-input" min="1" step="1" placeholder="<?php esc_attr_e( 'Latest order', 'voicepress' ); ?>">
 						</div>
+						<?php if ( self::is_multilingual() ) : ?>
+							<div class="vp-field vp-field--full">
+								<label class="vp-label" for="vp-test-language"><?php esc_html_e( 'Language', 'voicepress' ); ?></label>
+								<select id="vp-test-language" name="language" class="vp-input">
+									<option value=""><?php esc_html_e( 'Automatic — the customer’s language', 'voicepress' ); ?></option>
+									<?php foreach ( VoicePress_Languages::enabled() as $code ) : ?>
+										<option value="<?php echo esc_attr( $code ); ?>" lang="<?php echo esc_attr( VoicePress_Languages::html_lang( $code ) ); ?>"><?php echo esc_html( VoicePress_Languages::label( $code ) ); ?></option>
+									<?php endforeach; ?>
+								</select>
+								<p class="vp-help"><?php esc_html_e( 'Automatic uses the order’s preferred language, then the customer’s state, then your default language.', 'voicepress' ); ?></p>
+							</div>
+						<?php endif; ?>
 					</div>
 					<button type="submit" class="vp-btn vp-btn--primary vp-btn--lg vp-btn--block">
 						<span class="dashicons dashicons-phone" aria-hidden="true"></span>
@@ -1310,7 +1323,7 @@ class VoicePress_Admin {
 									</td>
 									<td><?php echo self::person_html( $call, false ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in builder. ?></td>
 									<td class="vp-mono vp-nowrap vp-hide-sm"><?php echo esc_html( '' !== $call['phone'] ? $call['phone'] : '—' ); ?></td>
-									<td><?php echo self::use_case_html( $call['use_case'], $call['direction'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in builder. ?></td>
+									<td><?php echo self::use_case_html( $call['use_case'], $call['direction'] ) . self::language_chip( $call ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in builder. ?></td>
 									<td class="vp-hide-sm"><?php echo self::order_link( $call['order_id'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in builder. ?></td>
 									<td><?php echo self::status_badge( $call['status'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in builder. ?></td>
 									<td><?php echo self::outcome_html( $call ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in builder. ?></td>
@@ -1467,7 +1480,7 @@ class VoicePress_Admin {
 								<a class="vp-mono" href="<?php echo esc_url( 'tel:' . preg_replace( '/[^0-9+]/', '', $phone ) ); ?>"><?php echo esc_html( $phone ); ?></a>
 								<span class="vp-dot-sep" aria-hidden="true">·</span>
 							<?php endif; ?>
-							<?php echo self::use_case_html( $call['use_case'], $call['direction'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in builder. ?>
+							<?php echo self::use_case_html( $call['use_case'], $call['direction'] ) . self::language_chip( $call ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in builder. ?>
 						</p>
 					</div>
 					<div class="vp-hero__badges">
@@ -1573,6 +1586,10 @@ class VoicePress_Admin {
 								<div><dt><?php esc_html_e( 'Status', 'voicepress' ); ?></dt><dd><?php echo esc_html( self::status_label( $call['status'] ) ); ?></dd></div>
 								<div><dt><?php esc_html_e( 'Use case', 'voicepress' ); ?></dt><dd><?php echo esc_html( self::use_case_label( $call['use_case'] ) ); ?></dd></div>
 								<div><dt><?php esc_html_e( 'Direction', 'voicepress' ); ?></dt><dd><?php echo esc_html( self::direction_label( $call['direction'] ) ); ?></dd></div>
+								<?php $call_language = self::call_language( $call ); ?>
+								<?php if ( '' !== $call_language ) : ?>
+									<div><dt><?php esc_html_e( 'Language', 'voicepress' ); ?></dt><dd><span lang="<?php echo esc_attr( VoicePress_Languages::html_lang( $call_language ) ); ?>"><?php echo esc_html( VoicePress_Languages::label( $call_language ) ); ?></span></dd></div>
+								<?php endif; ?>
 								<div><dt><?php esc_html_e( 'Agent', 'voicepress' ); ?></dt><dd><?php echo esc_html( '' !== $agent_name ? $agent_name : '—' ); ?></dd></div>
 								<?php if ( '' !== $call['scheduled_at'] ) : ?>
 									<div><dt><?php esc_html_e( 'Scheduled for', 'voicepress' ); ?></dt><dd><?php echo esc_html( self::local_time( $call['scheduled_at'] ) ); ?></dd></div>
@@ -1833,6 +1850,7 @@ class VoicePress_Admin {
 				__( 'Add Public URL', 'voicepress' )
 			);
 		}
+		self::render_language_sync_alert( $state );
 		?>
 		<div class="vp-grid vp-grid--agents">
 			<?php
@@ -1870,11 +1888,28 @@ class VoicePress_Admin {
 								<dt><?php esc_html_e( 'Voice', 'voicepress' ); ?></dt>
 								<dd>
 									<?php
-									/* translators: %s: agent persona name. */
-									echo esc_html( sprintf( __( '%s · English · natural female voice', 'voicepress' ), '' !== (string) $settings['agent_persona'] ? (string) $settings['agent_persona'] : 'Riya' ) );
+									$persona = '' !== (string) $settings['agent_persona'] ? (string) $settings['agent_persona'] : 'Riya';
+									if ( self::is_multilingual() ) {
+										/* translators: 1: agent persona name, 2: Sarvam voice name, e.g. "Ritu". */
+										echo esc_html( sprintf( __( '%1$s · natural female voice in English, Sarvam “%2$s” in Indian languages', 'voicepress' ), $persona, ucfirst( VoicePress_Languages::indic_voice() ) ) );
+									} else {
+										/* translators: %s: agent persona name. */
+										echo esc_html( sprintf( __( '%s · English · natural female voice', 'voicepress' ), $persona ) );
+									}
 									?>
 								</dd>
 							</div>
+							<?php if ( class_exists( 'VoicePress_Languages' ) ) : ?>
+								<div>
+									<dt><?php esc_html_e( 'Speaks', 'voicepress' ); ?></dt>
+									<dd>
+										<?php echo self::speaks_html(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in builder. ?>
+										<?php if ( '' !== $agent_id && VoicePress_Languages::agent_needs_sync( $key ) ) : ?>
+											<?php echo self::badge( __( 'Re-sync to apply', 'voicepress' ), 'warning', array( 'title' => __( 'Your language settings changed since this agent was last synced. Click “Re-sync all agents”.', 'voicepress' ) ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in builder. ?>
+										<?php endif; ?>
+									</dd>
+								</div>
+							<?php endif; ?>
 							<div>
 								<dt><?php esc_html_e( 'Live tools', 'voicepress' ); ?></dt>
 								<dd>
@@ -2257,7 +2292,7 @@ class VoicePress_Admin {
 			?>
 			<div class="vp-alert vp-alert--info">
 				<span class="vp-alert__icon dashicons dashicons-update" aria-hidden="true"></span>
-				<div class="vp-alert__body"><?php esc_html_e( 'Your store details or Public URL changed. Re-sync your agents so calls use the new information.', 'voicepress' ); ?></div>
+				<div class="vp-alert__body"><?php esc_html_e( 'Your store details, Public URL or languages changed. Re-sync your agents so calls use the new information.', 'voicepress' ); ?></div>
 				<div class="vp-alert__actions">
 					<button type="button" class="vp-btn vp-btn--sm vp-btn--primary vp-sync-agents"><span class="dashicons dashicons-update" aria-hidden="true"></span><span class="vp-btn__label"><?php esc_html_e( 'Re-sync agents now', 'voicepress' ); ?></span></button>
 				</div>
@@ -2359,6 +2394,8 @@ class VoicePress_Admin {
 							</div>
 						</div>
 					</section>
+
+					<?php self::render_languages_card( $s, $state ); ?>
 				</div>
 
 				<div class="vp-stack">
@@ -2446,6 +2483,195 @@ class VoicePress_Admin {
 		self::render_footer();
 	}
 
+	/**
+	 * Settings → "Languages" card (saved by the settings form).
+	 *
+	 * @param array $s     Settings.
+	 * @param array $state Setup state.
+	 */
+	private static function render_languages_card( $s, $state ) {
+		if ( ! class_exists( 'VoicePress_Languages' ) ) {
+			return;
+		}
+		$enabled  = VoicePress_Languages::enabled();
+		$default  = VoicePress_Languages::default_language();
+		$mode     = VoicePress_Languages::mode();
+		$voice    = VoicePress_Languages::indic_voice();
+		$switch   = VoicePress_Languages::switch_trigger();
+		$count    = count( $enabled );
+		$checkout = ! empty( $s['checkout_language_field'] );
+		?>
+		<section class="vp-card" id="vp-languages">
+			<div class="vp-card__head">
+				<div>
+					<h2 class="vp-card__title"><span class="vp-title-icon dashicons dashicons-translation" aria-hidden="true"></span><?php esc_html_e( 'Languages', 'voicepress' ); ?></h2>
+					<p class="vp-card__sub"><?php esc_html_e( 'Every agent speaks English plus the Indian languages you pick (natural Sarvam voices). Calls start in the customer’s language, and the agent switches when the caller does.', 'voicepress' ); ?></p>
+				</div>
+				<?php
+				/* translators: %d: number of languages. */
+				echo self::badge( sprintf( _n( '%d language', '%d languages', $count, 'voicepress' ), $count ), $count > 1 ? 'brand' : 'neutral' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in builder.
+				?>
+			</div>
+			<div class="vp-card__body">
+				<input type="hidden" name="languages_form" value="1">
+				<fieldset class="vp-langs">
+					<legend class="vp-label"><?php esc_html_e( 'Languages your agents speak', 'voicepress' ); ?></legend>
+					<?php foreach ( VoicePress_Languages::all() as $code => $info ) : ?>
+						<?php $is_en = 'en' === $code; ?>
+						<label class="vp-lang<?php echo $is_en ? ' is-locked' : ''; ?>">
+							<input type="checkbox" name="languages[]" value="<?php echo esc_attr( $code ); ?>"<?php checked( in_array( $code, $enabled, true ) ); ?><?php disabled( $is_en ); ?>>
+							<span class="vp-lang__inner">
+								<span class="vp-lang__native" lang="<?php echo esc_attr( VoicePress_Languages::html_lang( $code ) ); ?>"><?php echo esc_html( $info['native'] ); ?></span>
+								<span class="vp-lang__name"><?php echo esc_html( $is_en ? __( 'Always on', 'voicepress' ) : $info['name'] ); ?></span>
+							</span>
+						</label>
+					<?php endforeach; ?>
+					<input type="hidden" name="languages[]" value="en">
+				</fieldset>
+
+				<div class="vp-form-grid vp-form-grid--spaced">
+					<div class="vp-field">
+						<label class="vp-label" for="vp-default-language"><?php esc_html_e( 'Default language', 'voicepress' ); ?></label>
+						<select id="vp-default-language" name="default_language" class="vp-input">
+							<?php foreach ( VoicePress_Languages::all() as $code => $info ) : ?>
+								<option value="<?php echo esc_attr( $code ); ?>"<?php selected( $default, $code ); ?>><?php echo esc_html( VoicePress_Languages::label( $code ) ); ?></option>
+							<?php endforeach; ?>
+						</select>
+						<p class="vp-help"><?php esc_html_e( 'Used when a customer’s language is unknown, and as the website widget’s first choice. Pick one of the languages above (otherwise English is used).', 'voicepress' ); ?></p>
+					</div>
+					<div class="vp-field">
+						<label class="vp-label" for="vp-indic-voice"><?php esc_html_e( 'Indian languages voice', 'voicepress' ); ?></label>
+						<select id="vp-indic-voice" name="indic_voice" class="vp-input">
+							<?php foreach ( VoicePress_Languages::voices() as $id => $label ) : ?>
+								<option value="<?php echo esc_attr( $id ); ?>"<?php selected( $voice, $id ); ?>><?php echo esc_html( $label ); ?></option>
+							<?php endforeach; ?>
+						</select>
+						<p class="vp-help"><?php esc_html_e( 'Sarvam Bulbul v3 voice. The greetings are written for a female voice.', 'voicepress' ); ?></p>
+					</div>
+					<fieldset class="vp-field vp-field--full vp-radios">
+						<legend class="vp-label"><?php esc_html_e( 'Language of order calls', 'voicepress' ); ?></legend>
+						<label class="vp-radio">
+							<input type="radio" name="language_mode" value="auto_state"<?php checked( $mode, 'auto_state' ); ?>>
+							<span><strong><?php esc_html_e( 'Auto by customer’s state', 'voicepress' ); ?></strong> <span class="vp-muted"><?php esc_html_e( '— recommended for India. A Tamil Nadu address gets Tamil, Karnataka gets Kannada, and so on.', 'voicepress' ); ?></span></span>
+						</label>
+						<label class="vp-radio">
+							<input type="radio" name="language_mode" value="default"<?php checked( $mode, 'default' ); ?>>
+							<span><strong><?php esc_html_e( 'Always use the default language', 'voicepress' ); ?></strong></span>
+						</label>
+						<p class="vp-help"><?php esc_html_e( 'A language the customer picks at checkout always comes first.', 'voicepress' ); ?></p>
+					</fieldset>
+					<div class="vp-field vp-field--full">
+						<label class="vp-label" for="vp-language-switch"><?php esc_html_e( 'Switching languages during a call', 'voicepress' ); ?></label>
+						<select id="vp-language-switch" name="language_switch" class="vp-input">
+							<option value="requested_or_auto_detected"<?php selected( $switch, 'requested_or_auto_detected' ); ?>><?php esc_html_e( 'Auto-detect, or when the caller asks (recommended)', 'voicepress' ); ?></option>
+							<option value="caller_requested"<?php selected( $switch, 'caller_requested' ); ?>><?php esc_html_e( 'Only when the caller asks', 'voicepress' ); ?></option>
+						</select>
+					</div>
+				</div>
+
+				<?php self::switch_field( 'checkout_language_field', $checkout, __( 'Ask for a “Preferred language for order calls” at checkout', 'voicepress' ), 'vp-checkout-language' ); ?>
+
+				<?php if ( $state['agents_created'] > 0 && VoicePress_Languages::needs_resync() ) : ?>
+					<div class="vp-alert vp-alert--warning vp-alert--inline">
+						<span class="vp-alert__icon dashicons dashicons-update" aria-hidden="true"></span>
+						<div class="vp-alert__body"><?php esc_html_e( 'Your agents haven’t picked up these language settings yet, so calls start in English. Save any changes, then re-sync your agents.', 'voicepress' ); ?></div>
+						<div class="vp-alert__actions">
+							<button type="button" class="vp-btn vp-btn--sm vp-btn--secondary vp-sync-agents"><span class="dashicons dashicons-update" aria-hidden="true"></span><span class="vp-btn__label"><?php esc_html_e( 'Re-sync agents', 'voicepress' ); ?></span></button>
+						</div>
+					</div>
+					<?php if ( ! self::flag( 'resync' ) ) : // The "store details changed" banner already has a result box. ?>
+						<div class="vp-result" data-vp-agents-result role="status" aria-live="polite"></div>
+					<?php endif; ?>
+				<?php else : ?>
+					<p class="vp-help vp-langs__note"><?php esc_html_e( 'After changing languages, the voice or switching, click “Re-sync all agents” on the Agents page so your agents pick it up.', 'voicepress' ); ?></p>
+				<?php endif; ?>
+			</div>
+		</section>
+		<?php
+	}
+
+	/**
+	 * Agents page alert when the agents were not synced with the current language settings.
+	 *
+	 * @param array $state Setup state.
+	 */
+	private static function render_language_sync_alert( $state ) {
+		if ( ! class_exists( 'VoicePress_Languages' ) || $state['agents_created'] < 1 || ! VoicePress_Languages::needs_resync() ) {
+			return;
+		}
+		?>
+		<div class="vp-alert vp-alert--info">
+			<span class="vp-alert__icon dashicons dashicons-translation" aria-hidden="true"></span>
+			<div class="vp-alert__body">
+				<?php
+				echo esc_html(
+					VoicePress_Languages::is_multilingual()
+						? __( 'Your agents haven’t been synced with your language settings yet. Re-sync them so calls can start in each customer’s language — until then, calls start in English.', 'voicepress' )
+						: __( 'Your agents haven’t been synced with your language settings yet. Re-sync them to apply your changes.', 'voicepress' )
+				);
+				?>
+			</div>
+			<div class="vp-alert__actions">
+				<button type="button" class="vp-btn vp-btn--sm vp-btn--primary vp-sync-agents"><span class="dashicons dashicons-update" aria-hidden="true"></span><span class="vp-btn__label"><?php esc_html_e( 'Re-sync all agents', 'voicepress' ); ?></span></button>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * "English, हिन्दी, தமிழ் …" for the agent cards.
+	 *
+	 * @return string HTML.
+	 */
+	private static function speaks_html() {
+		$parts = array();
+		foreach ( VoicePress_Languages::enabled() as $code ) {
+			$parts[] = '<span lang="' . esc_attr( VoicePress_Languages::html_lang( $code ) ) . '" title="' . esc_attr( VoicePress_Languages::name( $code ) ) . '">' . esc_html( VoicePress_Languages::native( $code ) ) . '</span>';
+		}
+		return '<span class="vp-speaks">' . implode( ', ', $parts ) . '</span>';
+	}
+
+	/**
+	 * Language code of a call (user_data.call_language), '' when unknown.
+	 *
+	 * @param array $call Normalized call.
+	 * @return string
+	 */
+	private static function call_language( $call ) {
+		if ( ! class_exists( 'VoicePress_Languages' ) || ! isset( $call['user_data'] ) || ! is_array( $call['user_data'] ) || ! isset( $call['user_data']['call_language'] ) ) {
+			return '';
+		}
+		return VoicePress_Languages::sanitize_code( $call['user_data']['call_language'] );
+	}
+
+	/**
+	 * Small chip with the language a call started in ('' when unknown, or English on a single-language store).
+	 *
+	 * @param array $call Normalized call.
+	 * @return string HTML.
+	 */
+	private static function language_chip( $call ) {
+		$code = self::call_language( $call );
+		if ( '' === $code || ( 'en' === $code && ! self::is_multilingual() ) ) {
+			return '';
+		}
+		return ' <span class="vp-lang-chip" lang="' . esc_attr( VoicePress_Languages::html_lang( $code ) ) . '" title="' . esc_attr( VoicePress_Languages::name( $code ) ) . '">' . esc_html( VoicePress_Languages::native( $code ) ) . '</span>';
+	}
+
+	/**
+	 * Whether the agents speak more than one language.
+	 *
+	 * @return bool
+	 */
+	private static function is_multilingual() {
+		return (bool) self::safe(
+			function () {
+				return class_exists( 'VoicePress_Languages' ) && VoicePress_Languages::is_multilingual();
+			},
+			false
+		);
+	}
+
 	/* ---------------------------------------------------------------------
 	 * Form handlers
 	 * ------------------------------------------------------------------ */
@@ -2502,6 +2728,26 @@ class VoicePress_Admin {
 		}
 		$values['widget_enabled'] = empty( $_POST['widget_enabled'] ) ? 0 : 1;
 
+		// Languages card (only when it was part of the submitted form).
+		if ( ! empty( $_POST['languages_form'] ) && class_exists( 'VoicePress_Languages' ) ) {
+			$posted              = isset( $_POST['languages'] ) && is_array( $_POST['languages'] ) ? array_map( 'sanitize_key', wp_unslash( $_POST['languages'] ) ) : array();
+			$values['languages'] = VoicePress_Languages::normalize_list( $posted );
+
+			$default                    = VoicePress_Languages::sanitize_code( isset( $_POST['default_language'] ) ? sanitize_key( wp_unslash( $_POST['default_language'] ) ) : '' );
+			$values['default_language'] = in_array( $default, $values['languages'], true ) ? $default : 'en';
+
+			$mode                    = isset( $_POST['language_mode'] ) ? sanitize_key( wp_unslash( $_POST['language_mode'] ) ) : '';
+			$values['language_mode'] = in_array( $mode, VoicePress_Languages::MODES, true ) ? $mode : 'auto_state';
+
+			$voice                 = isset( $_POST['indic_voice'] ) ? sanitize_key( wp_unslash( $_POST['indic_voice'] ) ) : '';
+			$values['indic_voice'] = array_key_exists( $voice, VoicePress_Languages::VOICES ) ? $voice : VoicePress_Languages::DEFAULT_VOICE;
+
+			$switch                    = isset( $_POST['language_switch'] ) ? sanitize_key( wp_unslash( $_POST['language_switch'] ) ) : '';
+			$values['language_switch'] = in_array( $switch, VoicePress_Languages::SWITCH_TRIGGERS, true ) ? $switch : 'requested_or_auto_detected';
+
+			$values['checkout_language_field'] = empty( $_POST['checkout_language_field'] ) ? 0 : 1;
+		}
+
 		self::safe(
 			function () use ( $values ) {
 				VoicePress_Settings::update( $values );
@@ -2510,12 +2756,17 @@ class VoicePress_Admin {
 			false
 		);
 
-		// Agents carry store info, provider and tool URLs: suggest a re-sync when those change.
+		// Agents carry store info, provider, tool URLs and languages: suggest a re-sync when those change.
 		$resync = false;
 		$state  = self::setup_state( true );
 		if ( $state['agents_created'] > 0 ) {
-			foreach ( array( 'public_url', 'store_name', 'agent_persona', 'delivery_eta', 'support_hours', 'store_policies', 'return_window_days', 'telephony_provider', 'cart_discount_percent' ) as $key ) {
-				if ( array_key_exists( $key, $values ) && (string) $values[ $key ] !== (string) ( isset( $old[ $key ] ) ? $old[ $key ] : '' ) ) {
+			foreach ( array( 'public_url', 'store_name', 'agent_persona', 'delivery_eta', 'support_hours', 'store_policies', 'return_window_days', 'telephony_provider', 'cart_discount_percent', 'languages', 'indic_voice', 'language_switch' ) as $key ) {
+				if ( ! array_key_exists( $key, $values ) ) {
+					continue;
+				}
+				$new_value = is_array( $values[ $key ] ) ? implode( ',', $values[ $key ] ) : (string) $values[ $key ];
+				$old_value = isset( $old[ $key ] ) ? ( is_array( $old[ $key ] ) ? implode( ',', $old[ $key ] ) : (string) $old[ $key ] ) : '';
+				if ( $new_value !== $old_value ) {
 					$resync = true;
 					break;
 				}

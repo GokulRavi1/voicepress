@@ -514,10 +514,19 @@ class VoicePress_Agents {
 			'api_tools'   => $tools,
 		);
 
+		$prompt  = self::system_prompt( $agent_key, null !== $tools );
+		$welcome = self::welcome_message( $agent_key );
+
+		// English + every enabled Indian language (Sarvam). Calls pick their starting language with agent_data.
+		$multilingual = self::multilingual_config( $agent_key, $tools_config['synthesizer'], $prompt, $welcome );
+		if ( null !== $multilingual ) {
+			$tools_config['multilingual_config'] = $multilingual;
+		}
+
 		$payload = array(
 			'agent_config'  => array(
 				'agent_name'            => self::agent_name( $agent_key ),
-				'agent_welcome_message' => self::welcome_message( $agent_key ),
+				'agent_welcome_message' => $welcome,
 				'webhook_url'           => $webhook,
 				'call_summary_enabled'  => true,
 				'tasks'                 => array(
@@ -534,7 +543,7 @@ class VoicePress_Agents {
 			),
 			'agent_prompts' => array(
 				'task_1' => array(
-					'system_prompt' => self::system_prompt( $agent_key, null !== $tools ),
+					'system_prompt' => $prompt,
 				),
 			),
 		);
@@ -548,6 +557,75 @@ class VoicePress_Agents {
 		$filtered = apply_filters( 'voicepress_agent_payload', $payload, $agent_key );
 
 		return is_array( $filtered ) ? $filtered : $payload;
+	}
+
+	/**
+	 * Bolna multilingual_config for an agent: an English entry (the agent's own prompt, welcome and
+	 * ElevenLabs voice) plus one Sarvam entry per enabled Indian language. null when fewer than two
+	 * languages are enabled (Bolna requires at least two).
+	 *
+	 * The agent always opens in English (active_language); each call starts in the customer's language
+	 * through agent_data.language, and the caller can switch languages mid-call.
+	 *
+	 * @param string $agent_key        Agent key.
+	 * @param array  $base_synthesizer The agent's base (English) synthesizer block.
+	 * @param string $prompt           The agent's English system prompt.
+	 * @param string $welcome          The agent's English welcome message.
+	 * @return array|null
+	 */
+	public static function multilingual_config( $agent_key, array $base_synthesizer, $prompt, $welcome ) {
+		if ( ! self::is_agent_key( $agent_key ) || ! class_exists( 'VoicePress_Languages' ) || ! VoicePress_Languages::is_multilingual() ) {
+			return null;
+		}
+
+		$facts     = self::store_facts();
+		$persona   = $facts['agent'];
+		$languages = array();
+		foreach ( VoicePress_Languages::enabled() as $code ) {
+			if ( 'en' === $code ) {
+				$languages['en'] = array(
+					'synthesizer'     => $base_synthesizer,
+					'system_prompt'   => (string) $prompt,
+					'agent_name'      => $persona,
+					'welcome_message' => (string) $welcome,
+					'handoff_message' => VoicePress_Languages::handoff( 'en' ),
+				);
+				continue;
+			}
+			$languages[ $code ] = array(
+				'transcriber'     => VoicePress_Languages::sarvam_transcriber( $code ),
+				'synthesizer'     => VoicePress_Languages::sarvam_synthesizer( $code ),
+				'system_prompt'   => (string) $prompt . "\n\n" . VoicePress_Languages::directive( $code ),
+				'handoff_message' => VoicePress_Languages::handoff( $code ),
+				'agent_name'      => $persona,
+				'welcome_message' => 'support' === $agent_key ? VoicePress_Languages::inbound_greeting( $code ) : VoicePress_Languages::outbound_greeting( $code ),
+			);
+		}
+
+		if ( count( $languages ) < 2 || ! isset( $languages['en'] ) ) {
+			return null;
+		}
+
+		return array(
+			'enabled'                 => true,
+			'active_language'         => 'en',
+			'language_switch_trigger' => VoicePress_Languages::switch_trigger(),
+			'languages'               => $languages,
+		);
+	}
+
+	/**
+	 * Language codes of a built payload's multilingual_config ([] for a single-language agent).
+	 *
+	 * @param array $payload build_payload() result.
+	 * @return string[]
+	 */
+	public static function payload_languages( $payload ) {
+		$config = isset( $payload['agent_config']['tasks'][0]['tools_config']['multilingual_config'] ) ? $payload['agent_config']['tasks'][0]['tools_config']['multilingual_config'] : null;
+		if ( ! is_array( $config ) || empty( $config['enabled'] ) || ! isset( $config['languages'] ) || ! is_array( $config['languages'] ) ) {
+			return array();
+		}
+		return array_map( 'strval', array_keys( $config['languages'] ) );
 	}
 
 	/**
@@ -1429,6 +1507,7 @@ class VoicePress_Agents {
 		if ( '' !== $agent_id ) {
 			$response = $client->update_agent( $agent_id, $payload['agent_config'], $payload['agent_prompts'] );
 			if ( ! is_wp_error( $response ) ) {
+				self::remember_languages( $agent_key, $agent_id, $payload );
 				return array(
 					'agent_id'      => $agent_id,
 					'action'        => 'updated',
@@ -1458,6 +1537,7 @@ class VoicePress_Agents {
 		if ( class_exists( 'VoicePress_Settings' ) ) {
 			VoicePress_Settings::set_agent_id( $agent_key, $new_id );
 		}
+		self::remember_languages( $agent_key, $new_id, $payload );
 
 		return array(
 			'agent_id'      => $new_id,
@@ -1549,6 +1629,26 @@ class VoicePress_Agents {
 	/* ---------------------------------------------------------------------------------------------
 	 * Internals
 	 * ------------------------------------------------------------------------------------------- */
+
+	/**
+	 * Remember which languages Bolna now has for this agent, so calls only ask to start in one of them.
+	 *
+	 * @param string $agent_key Agent key.
+	 * @param string $agent_id  Bolna agent id.
+	 * @param array  $payload   Payload that was sent.
+	 */
+	private static function remember_languages( $agent_key, $agent_id, $payload ) {
+		if ( ! class_exists( 'VoicePress_Languages' ) ) {
+			return;
+		}
+		try {
+			VoicePress_Languages::record_agent_languages( $agent_key, $agent_id, self::payload_languages( $payload ) );
+		} catch ( \Throwable $e ) {
+			if ( class_exists( 'VoicePress_Helpers' ) ) {
+				VoicePress_Helpers::log( 'Could not record agent languages', array( 'error' => $e->getMessage() ) );
+			}
+		}
+	}
 
 	/**
 	 * Saved Bolna agent id for an agent key.

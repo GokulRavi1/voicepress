@@ -40,7 +40,14 @@ class VoicePress_Settings {
 	 *
 	 * @var string[]
 	 */
-	private static $flags = array( 'respect_calling_hours', 'widget_enabled' );
+	private static $flags = array( 'respect_calling_hours', 'widget_enabled', 'checkout_language_field' );
+
+	/**
+	 * Every language code VoicePress can speak (mirrors VoicePress_Languages::CODES).
+	 *
+	 * @var string[]
+	 */
+	private static $language_codes = array( 'en', 'hi', 'ta', 'te', 'kn', 'ml', 'mr', 'bn', 'gu', 'pa', 'od' );
 
 	/**
 	 * Register hooks.
@@ -63,27 +70,27 @@ class VoicePress_Settings {
 		$store_name = function_exists( 'get_bloginfo' ) ? trim( html_entity_decode( (string) get_bloginfo( 'name' ), ENT_QUOTES, 'UTF-8' ) ) : '';
 
 		return array(
-			'api_key'               => '',
-			'from_number'           => '',
-			'phone_number_id'       => '',
-			'telephony_provider'    => 'twilio',
-			'public_url'            => '',
-			'secret'                => '', // Generated once and stored by ensure_defaults()/secret().
-			'store_name'            => '' !== $store_name ? $store_name : 'our store',
-			'agent_persona'         => 'Riya',
-			'default_country_code'  => '91',
-			'return_window_days'    => 7,
-			'delivery_eta'          => '3 to 5 working days',
-			'support_hours'         => '9 AM to 9 PM, all days',
-			'store_policies'        => 'Free delivery above 499 rupees. Cash on delivery available. Easy 7 day returns on unused items.',
-			'agents'                => array(
+			'api_key'                 => '',
+			'from_number'             => '',
+			'phone_number_id'         => '',
+			'telephony_provider'      => 'twilio',
+			'public_url'              => '',
+			'secret'                  => '', // Generated once and stored by ensure_defaults()/secret().
+			'store_name'              => '' !== $store_name ? $store_name : 'our store',
+			'agent_persona'           => 'Riya',
+			'default_country_code'    => '91',
+			'return_window_days'      => 7,
+			'delivery_eta'            => '3 to 5 working days',
+			'support_hours'           => '9 AM to 9 PM, all days',
+			'store_policies'          => 'Free delivery above 499 rupees. Cash on delivery available. Easy 7 day returns on unused items.',
+			'agents'                  => array(
 				'cod_confirmation' => '',
 				'delivery'         => '',
 				'cart_recovery'    => '',
 				'feedback'         => '',
 				'support'          => '',
 			),
-			'automations'           => array(
+			'automations'             => array(
 				'cod_confirmation'  => array(
 					'enabled' => 1,
 					'delay'   => 0,
@@ -105,14 +112,21 @@ class VoicePress_Settings {
 					'delay'   => 15,
 				),
 			),
-			'respect_calling_hours' => 0,
-			'calling_hours_start'   => 9,
-			'calling_hours_end'     => 21,
-			'max_attempts'          => 2,
-			'retry_after'           => 30, // Minutes.
-			'widget_enabled'        => 1,
-			'widget_label'          => 'Talk to us',
-			'cart_discount_percent' => 10,
+			'respect_calling_hours'   => 0,
+			'calling_hours_start'     => 9,
+			'calling_hours_end'       => 21,
+			'max_attempts'            => 2,
+			'retry_after'             => 30, // Minutes.
+			'widget_enabled'          => 1,
+			'widget_label'            => 'Talk to us',
+			'cart_discount_percent'   => 10,
+			// Languages (English + the Indian languages Bolna speaks through Sarvam).
+			'languages'               => self::$language_codes,
+			'default_language'        => 'en',
+			'language_mode'           => 'auto_state', // 'auto_state' | 'default'.
+			'indic_voice'             => 'ritu',
+			'language_switch'         => 'requested_or_auto_detected', // Or 'caller_requested'.
+			'checkout_language_field' => 1,
 		);
 	}
 
@@ -143,7 +157,11 @@ class VoicePress_Settings {
 	 */
 	public static function update( array $values ): void {
 		$stored = self::stored();
-		$merged = array_replace_recursive( $stored, self::sanitize( $values ) );
+		$clean  = self::sanitize( $values );
+		$merged = array_replace_recursive( $stored, $clean );
+		if ( array_key_exists( 'languages', $clean ) ) {
+			$merged['languages'] = $clean['languages']; // A list: replace it, never merge it index by index.
+		}
 		if ( ! isset( $merged['secret'] ) || ! is_string( $merged['secret'] ) || '' === $merged['secret'] ) {
 			$merged['secret'] = ! empty( $stored['secret'] ) && is_string( $stored['secret'] ) ? $stored['secret'] : self::generate_secret();
 		}
@@ -316,8 +334,13 @@ class VoicePress_Settings {
 				}
 			}
 		}
+		// The language list replaces the default list (array_replace_recursive would merge it index by index).
+		$languages = isset( $stored['languages'] ) && ( is_array( $stored['languages'] ) || is_string( $stored['languages'] ) ) ? $stored['languages'] : null;
+		unset( $stored['languages'] );
 
 		$all = array_replace_recursive( $defaults, $stored );
+
+		$all['languages'] = self::sanitize_languages( null === $languages ? $defaults['languages'] : $languages );
 
 		foreach ( self::$never_empty as $key ) {
 			if ( ! isset( $all[ $key ] ) || ! is_scalar( $all[ $key ] ) || '' === trim( (string) $all[ $key ] ) ) {
@@ -438,6 +461,30 @@ class VoicePress_Settings {
 					$clean[ $key ] = is_scalar( $value ) ? sanitize_text_field( (string) $value ) : '';
 					break;
 
+				case 'languages':
+					$clean[ $key ] = self::sanitize_languages( $value );
+					break;
+
+				case 'default_language':
+					$code          = is_scalar( $value ) ? strtolower( trim( (string) $value ) ) : '';
+					$code          = 'or' === $code ? 'od' : $code;
+					$clean[ $key ] = in_array( $code, self::$language_codes, true ) ? $code : 'en';
+					break;
+
+				case 'language_mode':
+					$clean[ $key ] = ( is_string( $value ) && in_array( $value, array( 'auto_state', 'default' ), true ) ) ? $value : 'auto_state';
+					break;
+
+				case 'indic_voice':
+					$voice         = is_scalar( $value ) ? strtolower( trim( (string) $value ) ) : '';
+					$voices        = array( 'ritu', 'pooja', 'simran', 'shreya', 'ishita', 'amit', 'manan', 'shubh', 'sumit' );
+					$clean[ $key ] = in_array( $voice, $voices, true ) ? $voice : 'ritu';
+					break;
+
+				case 'language_switch':
+					$clean[ $key ] = ( is_string( $value ) && in_array( $value, array( 'requested_or_auto_detected', 'caller_requested' ), true ) ) ? $value : 'requested_or_auto_detected';
+					break;
+
 				default:
 					if ( isset( self::$int_ranges[ $key ] ) ) {
 						$range         = self::$int_ranges[ $key ];
@@ -450,6 +497,26 @@ class VoicePress_Settings {
 			}
 		}
 		return $clean;
+	}
+
+	/**
+	 * Language list: known codes only, no duplicates, English always first, catalog order.
+	 *
+	 * @param mixed $value Array of codes (or a comma-separated string).
+	 * @return string[]
+	 */
+	private static function sanitize_languages( $value ) {
+		if ( class_exists( 'VoicePress_Languages' ) && method_exists( 'VoicePress_Languages', 'normalize_list' ) ) {
+			return VoicePress_Languages::normalize_list( $value );
+		}
+		$wanted = array( 'en' );
+		foreach ( (array) ( is_string( $value ) ? explode( ',', $value ) : $value ) as $code ) {
+			$code = is_scalar( $code ) ? strtolower( trim( (string) $code ) ) : '';
+			if ( '' !== $code ) {
+				$wanted[] = 'or' === $code ? 'od' : $code;
+			}
+		}
+		return array_values( array_intersect( self::$language_codes, $wanted ) );
 	}
 
 	/**

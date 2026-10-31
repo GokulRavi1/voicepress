@@ -26,7 +26,7 @@ define( 'VOICEPRESS_REST_NS', 'voicepress/v1' );
  * ($GLOBALS because WP-CLI and the activation sandbox include plugins from inside a function.)
  */
 $GLOBALS['voicepress_missing_files'] = array();
-foreach ( array( 'helpers', 'bolna-client', 'settings', 'db', 'agents', 'calls', 'automations', 'rest', 'admin', 'frontend' ) as $voicepress_module ) {
+foreach ( array( 'helpers', 'bolna-client', 'settings', 'db', 'languages', 'agents', 'calls', 'automations', 'rest', 'admin', 'frontend' ) as $voicepress_module ) {
 	$voicepress_module_file = VOICEPRESS_DIR . 'includes/class-voicepress-' . $voicepress_module . '.php';
 	if ( is_readable( $voicepress_module_file ) ) {
 		require_once $voicepress_module_file;
@@ -86,7 +86,7 @@ function voicepress_boot() {
 	if ( class_exists( 'VoicePress_DB' ) ) {
 		VoicePress_DB::maybe_upgrade();
 	}
-	foreach ( array( 'VoicePress_Settings', 'VoicePress_Agents', 'VoicePress_Calls', 'VoicePress_Automations', 'VoicePress_REST', 'VoicePress_Admin', 'VoicePress_Frontend' ) as $class ) {
+	foreach ( array( 'VoicePress_Settings', 'VoicePress_Languages', 'VoicePress_Agents', 'VoicePress_Calls', 'VoicePress_Automations', 'VoicePress_REST', 'VoicePress_Admin', 'VoicePress_Frontend' ) as $class ) {
 		if ( 'VoicePress_Admin' === $class && ! is_admin() ) {
 			continue;
 		}

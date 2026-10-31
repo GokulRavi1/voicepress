@@ -356,8 +356,50 @@
 			target: 0,
 			speaking: false,
 			speakingAt: 0,
-			cbBusy: false
+			cbBusy: false,
+			lang: ''             // Language picked with the chips ('' on single-language stores).
 		};
+
+		/* ---- languages (multilingual stores): [[code, native, English name], …] ---- */
+		var LANGS = [];
+		if (Array.isArray(cfg.languages)) {
+			for (var li = 0; li < cfg.languages.length; li++) {
+				var entry = cfg.languages[li];
+				if (Array.isArray(entry) && typeof entry[0] === 'string' && /^[a-z]{2}$/.test(entry[0])) {
+					LANGS.push({
+						code: entry[0],
+						native: String(entry[1] || entry[0]),
+						name: String(entry[2] || entry[1] || entry[0])
+					});
+				}
+			}
+		}
+		if (LANGS.length < 2) {
+			LANGS = [];
+		}
+
+		function findLang(code) {
+			for (var i = 0; i < LANGS.length; i++) {
+				if (LANGS[i].code === code) {
+					return LANGS[i];
+				}
+			}
+			return null;
+		}
+
+		function storedLang() {
+			try {
+				return String(window.localStorage.getItem('vpw_lang') || '');
+			} catch (e) {
+				return '';
+			}
+		}
+
+		if (LANGS.length) {
+			var remembered = storedLang();
+			var fallback = String(cfg.defaultLanguage || '');
+			st.lang = findLang(remembered) ? remembered : (findLang(fallback) ? fallback : LANGS[0].code);
+		}
 
 		/* ---- launcher ---- */
 		var launcherIcon = icon('mic', 'vpw-launcher__icon');
@@ -384,6 +426,7 @@
 		try {
 			initial = Array.from(agent)[0].toUpperCase();
 		} catch (e) { /* keep charAt */ }
+		var subtitle = h('p', { 'class': 'vpw-subtitle', text: t('subtitle', agent + ' · AI voice assistant · English') });
 		var header = h('div', { 'class': 'vpw-header' }, [
 			h('span', { 'class': 'vpw-avatar', 'aria-hidden': 'true' }, [
 				h('span', { 'class': 'vpw-avatar__letter', text: initial }),
@@ -391,10 +434,36 @@
 			]),
 			h('div', { 'class': 'vpw-heading' }, [
 				h('h2', { 'class': 'vpw-title', id: 'vpw-title', text: t('title', 'Talk to us') }),
-				h('p', { 'class': 'vpw-subtitle', text: t('subtitle', agent + ' · AI voice assistant · English') })
+				subtitle
 			]),
 			closeBtn
 		]);
+
+		/* ---- language chips (above the start button) ---- */
+		var langButtons = [];
+		var langPicker = null;
+		if (LANGS.length) {
+			var langChips = h('div', { 'class': 'vpw-langs__chips', role: 'radiogroup', 'aria-label': t('language', 'Language') });
+			for (var lc = 0; lc < LANGS.length; lc++) {
+				var chipLang = LANGS[lc];
+				var chipBtn = h('button', {
+					type: 'button',
+					'class': 'vpw-lang',
+					role: 'radio',
+					'aria-checked': 'false',
+					'data-lang': chipLang.code,
+					lang: chipLang.code === 'od' ? 'or' : chipLang.code, // Odia is "or" in HTML, "od" in Bolna.
+					title: chipLang.name,
+					text: chipLang.native
+				});
+				langButtons.push(chipBtn);
+				langChips.appendChild(chipBtn);
+			}
+			langPicker = h('div', { 'class': 'vpw-langs' }, [
+				h('p', { 'class': 'vpw-langs__label', 'aria-hidden': 'true', text: t('languageHint', 'Speak in') }),
+				langChips
+			]);
+		}
 
 		/* ---- call view ---- */
 		var bars = [];
@@ -449,7 +518,7 @@
 		var noteText = h('span');
 		var note = h('p', { 'class': 'vpw-note' }, [noteIcon, noteText]);
 
-		var callView = h('div', { 'class': 'vpw-view vpw-view--call' }, [stage, status, liveRow, soundBtn, controls, actions, note]);
+		var callView = h('div', { 'class': 'vpw-view vpw-view--call' }, [langPicker, stage, status, liveRow, soundBtn, controls, actions, note]);
 
 		/* ---- call-back form ---- */
 		function field(id, text, input) {
@@ -645,7 +714,42 @@
 			renderChip();
 			renderLauncher();
 			renderFooter();
+			renderLangs();
 			keepFocus(hadFocus);
+		}
+
+		/** Language chips: hidden during a call; the subtitle names the chosen language. */
+		function renderLangs() {
+			if (!langPicker) {
+				return;
+			}
+			langPicker.hidden = isInCall();
+			for (var i = 0; i < langButtons.length; i++) {
+				var on = langButtons[i].getAttribute('data-lang') === st.lang;
+				langButtons[i].setAttribute('aria-checked', on ? 'true' : 'false');
+				langButtons[i].tabIndex = on ? 0 : -1;
+				toggleClass(langButtons[i], 'vpw-is-on', on);
+			}
+			var current = findLang(st.lang);
+			subtitle.textContent = t('subtitle', agent + ' · AI voice assistant') + (current ? ' · ' + current.native : '');
+		}
+
+		function selectLang(code, focus) {
+			if (!findLang(code) || isInCall()) {
+				return;
+			}
+			st.lang = code;
+			try {
+				window.localStorage.setItem('vpw_lang', code);
+			} catch (e) { /* storage blocked: keep it for this page only */ }
+			renderLangs();
+			if (focus) {
+				for (var i = 0; i < langButtons.length; i++) {
+					if (langButtons[i].getAttribute('data-lang') === code) {
+						langButtons[i].focus();
+					}
+				}
+			}
 		}
 
 		/** If the focused control was just hidden (e.g. "End call"), move focus to the next action. */
@@ -765,7 +869,11 @@
 
 		/** getSession for BolnaWebCall: the mint JSON from our REST API, returned unchanged. */
 		function mintSession(attempt) {
-			return api('web-session', { context: CONTEXT }).then(function (res) {
+			var body = { context: CONTEXT };
+			if (st.lang) {
+				body.language = st.lang;
+			}
+			return api('web-session', body).then(function (res) {
 				var data = res.data || {};
 				if (res.ok && data.run_id && data.wss_url && data.sip_username) {
 					return data;
@@ -1120,6 +1228,9 @@
 				name: cbName.value.trim().slice(0, 80),
 				order_id: cbOrder.value.replace(/^\s*#/, '').trim().slice(0, 20)
 			};
+			if (st.lang) {
+				payload.language = st.lang;
+			}
 
 			api('callback-request', payload).then(function (res) {
 				var data = res.data || {};
@@ -1186,6 +1297,37 @@
 			}
 		});
 		cbForm.addEventListener('submit', submitCallback);
+		if (langPicker) {
+			langPicker.addEventListener('click', function (event) {
+				var chipNode = closest(event.target, '.vpw-lang');
+				if (chipNode) {
+					selectLang(chipNode.getAttribute('data-lang'), false);
+				}
+			});
+			// Radio group keys: arrows move (and select), Home / End jump.
+			langPicker.addEventListener('keydown', function (event) {
+				var keys = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1, Home: 'first', End: 'last' };
+				if (!Object.prototype.hasOwnProperty.call(keys, event.key)) {
+					return;
+				}
+				var index = -1;
+				for (var i = 0; i < LANGS.length; i++) {
+					if (LANGS[i].code === st.lang) {
+						index = i;
+					}
+				}
+				var move = keys[event.key];
+				if (move === 'first') {
+					index = 0;
+				} else if (move === 'last') {
+					index = LANGS.length - 1;
+				} else {
+					index = (index + move + LANGS.length) % LANGS.length;
+				}
+				event.preventDefault();
+				selectLang(LANGS[index].code, true);
+			});
+		}
 		cbPhone.addEventListener('input', function () {
 			if (cbPhone.getAttribute('aria-invalid')) {
 				cbPhone.removeAttribute('aria-invalid');

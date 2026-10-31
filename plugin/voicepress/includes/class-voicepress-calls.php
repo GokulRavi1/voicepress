@@ -93,6 +93,8 @@ class VoicePress_Calls {
 	 *     @type bool   $force         Ignore skip conditions and calling hours (test calls).
 	 *     @type bool   $defer         With delay 0: save the call and dial it when the current request
 	 *                                 ends, so checkout and order saves stay fast. Cron is the safety net.
+	 *     @type string $language      Language to start the call in (an enabled code, e.g. 'ta'). Default: the
+	 *                                 order's language (preference → state) or the default language.
 	 * }
 	 * @return array|WP_Error Call row.
 	 */
@@ -111,8 +113,19 @@ class VoicePress_Calls {
 				'agent_key'     => '',
 				'force'         => false,
 				'defer'         => false,
+				'language'      => '',
 			)
 		);
+		if ( ! is_array( $args['extra'] ) ) {
+			$args['extra'] = array();
+		}
+		// A requested language travels with the row (user_data extras) until the call is dialled.
+		if ( class_exists( 'VoicePress_Languages' ) ) {
+			$language = VoicePress_Languages::sanitize_code( $args['language'] );
+			if ( '' !== $language && VoicePress_Languages::is_enabled( $language ) ) {
+				$args['extra']['call_language'] = $language;
+			}
+		}
 
 		if ( '' === $use_case || in_array( $use_case, array( 'inbound', 'web_call' ), true ) ) {
 			return self::error( 'voicepress_bad_use_case', __( 'This kind of call cannot be dialled from here.', 'voicepress' ), 400 );
@@ -285,7 +298,22 @@ class VoicePress_Calls {
 				)
 			);
 
-			$response     = $client->make_call( $agent_id, $phone, $user_data, (string) VoicePress_Settings::get( 'from_number', '' ) );
+			// Start the call in the customer's language when the agent was provisioned with it; otherwise it
+			// starts in the agent's default language, English.
+			$wanted     = isset( $user_data['call_language'] ) ? (string) $user_data['call_language'] : '';
+			$agent_data = self::language_agent_data( $agent_id, $wanted );
+			if ( '' !== $wanted && 'en' !== $wanted && empty( $agent_data ) ) {
+				$user_data['call_language'] = 'en';
+			}
+			$from     = (string) VoicePress_Settings::get( 'from_number', '' );
+			$response = $client->make_call( $agent_id, $phone, $user_data, $from, $agent_data );
+			if ( ! empty( $agent_data ) && self::is_language_rejection( $response ) ) {
+				// Bolna does not know this language for the agent (changed outside VoicePress): call in English
+				// now and stop asking until the agents are re-synced.
+				VoicePress_Languages::forget_agent( $agent_id );
+				$user_data['call_language'] = 'en';
+				$response                   = $client->make_call( $agent_id, $phone, $user_data, $from );
+			}
 			$execution_id = ( is_array( $response ) && ! empty( $response['execution_id'] ) ) ? sanitize_text_field( (string) $response['execution_id'] ) : '';
 			if ( is_wp_error( $response ) || '' === $execution_id ) {
 				$message = is_wp_error( $response ) ? $response->get_error_message() : __( 'Bolna did not return a call id.', 'voicepress' );
@@ -313,14 +341,7 @@ class VoicePress_Calls {
 					$order->update_meta_data( '_voicepress_cod_status', 'calling' );
 				}
 				$order->save();
-				$label = self::use_case_label( $use_case );
-				$order->add_order_note(
-					$force
-						/* translators: %s: use case label, e.g. "COD confirmation". */
-						? sprintf( __( 'VoicePress: %s test call started.', 'voicepress' ), $label )
-						/* translators: 1: use case label, e.g. "COD confirmation", 2: attempt number. */
-						: sprintf( __( 'VoicePress: %1$s call started (attempt %2$d).', 'voicepress' ), $label, max( 1, (int) $row['attempt'] ) )
-				);
+				$order->add_order_note( self::started_note( $use_case, $row, $force, isset( $user_data['call_language'] ) ? (string) $user_data['call_language'] : '', $wanted ) );
 			}
 			if ( $cart && 'cart_recovery' === $use_case && 'recovered' !== (string) $cart['status'] ) {
 				VoicePress_DB::update_cart(
@@ -544,6 +565,10 @@ class VoicePress_Calls {
 				break;
 		}
 
+		// Language the call starts in: requested → order (preference, then state) → default.
+		$data['call_language'] = self::resolve_language( $order, isset( $extra['call_language'] ) ? $extra['call_language'] : '' );
+		unset( $extra['call_language'] );
+
 		foreach ( $extra as $key => $value ) {
 			$data[ $key ] = $value;
 		}
@@ -558,6 +583,87 @@ class VoicePress_Calls {
 		$data = apply_filters( 'voicepress_user_data', $data, $use_case, $args );
 
 		return self::stringify( is_array( $data ) ? $data : array() );
+	}
+
+	/**
+	 * Language a call starts in: the requested language when it is enabled, else the order's language
+	 * (customer preference, then delivery state), else the default language.
+	 *
+	 * @param WC_Order|null $order     Order the call is about.
+	 * @param string        $requested Requested language code.
+	 * @return string Enabled language code.
+	 */
+	public static function resolve_language( $order = null, $requested = '' ) {
+		if ( ! class_exists( 'VoicePress_Languages' ) ) {
+			return 'en';
+		}
+		$requested = VoicePress_Languages::sanitize_code( $requested );
+		if ( '' !== $requested && VoicePress_Languages::is_enabled( $requested ) ) {
+			return $requested;
+		}
+		if ( class_exists( 'WC_Order' ) && $order instanceof WC_Order ) {
+			return VoicePress_Languages::for_order( $order );
+		}
+		return VoicePress_Languages::for_phone_context( '' );
+	}
+
+	/**
+	 * agent_data that starts the call in a language ([] when the agent cannot start in it).
+	 *
+	 * @param string $agent_id Bolna agent id.
+	 * @param string $language Language code.
+	 * @return array
+	 */
+	private static function language_agent_data( $agent_id, $language ) {
+		if ( '' === (string) $language || ! class_exists( 'VoicePress_Languages' ) ) {
+			return array();
+		}
+		return VoicePress_Languages::agent_data( $agent_id, $language );
+	}
+
+	/**
+	 * Whether Bolna refused the call because of agent_data.language (HTTP 400/422 mentioning the language).
+	 *
+	 * @param mixed $response make_call() / mint_web_session() result.
+	 * @return bool
+	 */
+	public static function is_language_rejection( $response ) {
+		if ( ! is_wp_error( $response ) ) {
+			return false;
+		}
+		$data   = $response->get_error_data();
+		$status = is_array( $data ) && isset( $data['status'] ) ? (int) $data['status'] : 0;
+		return in_array( $status, array( 400, 422 ), true ) && false !== stripos( $response->get_error_message(), 'language' );
+	}
+
+	/**
+	 * Order note for a call that was just dialled: "📞 VoicePress: COD confirmation call started in Tamil (attempt 1)."
+	 *
+	 * @param string $use_case Use case.
+	 * @param array  $row      Call row.
+	 * @param bool   $force    Test call.
+	 * @param string $language Language the call starts in.
+	 * @param string $wanted   Language the call should have started in.
+	 * @return string
+	 */
+	private static function started_note( $use_case, array $row, $force, $language, $wanted ) {
+		$label = self::use_case_label( $use_case );
+		$name  = class_exists( 'VoicePress_Languages' ) ? VoicePress_Languages::name( $language ) : '';
+		if ( '' === $name ) {
+			$name = 'English';
+		}
+		$note = $force
+			/* translators: 1: use case label, e.g. "COD confirmation", 2: language name, e.g. "Tamil". */
+			? sprintf( __( '📞 VoicePress: %1$s test call started in %2$s.', 'voicepress' ), $label, $name )
+			/* translators: 1: use case label, e.g. "COD confirmation", 2: language name, e.g. "Tamil", 3: attempt number. */
+			: sprintf( __( '📞 VoicePress: %1$s call started in %2$s (attempt %3$d).', 'voicepress' ), $label, $name, max( 1, (int) $row['attempt'] ) );
+
+		$wanted_name = ( '' !== $wanted && $wanted !== $language && class_exists( 'VoicePress_Languages' ) ) ? VoicePress_Languages::name( $wanted ) : '';
+		if ( '' !== $wanted_name ) {
+			/* translators: %s: language name, e.g. "Tamil". */
+			$note .= ' ' . sprintf( __( 'The customer\'s language is %s: re-sync the agents (VoicePress → Agents) so calls can start in it.', 'voicepress' ), $wanted_name );
+		}
+		return $note;
 	}
 
 	/**
@@ -767,9 +873,10 @@ class VoicePress_Calls {
 	 * @param string $use_case Use case key.
 	 * @param string $phone    Phone to call.
 	 * @param int    $order_id Order to use (0 = most recent suitable order).
+	 * @param string $language Language to start the call in ('' = the order's / default language).
 	 * @return array|WP_Error Call row.
 	 */
-	public static function test_call( $use_case, $phone, $order_id = 0 ) {
+	public static function test_call( $use_case, $phone, $order_id = 0, $language = '' ) {
 		$use_case = sanitize_key( (string) $use_case );
 		$phone    = VoicePress_Helpers::normalize_phone( is_scalar( $phone ) ? (string) $phone : '' );
 		if ( '' === $phone ) {
@@ -793,6 +900,7 @@ class VoicePress_Calls {
 					'order_id' => $order->get_id(),
 					'phone'    => $phone,
 					'force'    => true,
+					'language' => $language,
 				)
 			);
 		}
@@ -805,9 +913,10 @@ class VoicePress_Calls {
 			$result = self::place_call(
 				'cart_recovery',
 				array(
-					'cart_id' => $cart_id,
-					'phone'   => $phone,
-					'force'   => true,
+					'cart_id'  => $cart_id,
+					'phone'    => $phone,
+					'force'    => true,
+					'language' => $language,
 				)
 			);
 			if ( is_wp_error( $result ) ) {
@@ -828,6 +937,7 @@ class VoicePress_Calls {
 						'channel'          => 'phone',
 					),
 					'force'         => true,
+					'language'      => $language,
 				)
 			);
 		}
@@ -1321,9 +1431,9 @@ class VoicePress_Calls {
 			return null;
 		}
 
-		// Carry over what must stay the same between attempts (discount code, support context).
+		// Carry over what must stay the same between attempts (discount code, support context, language).
 		$previous = is_array( $row['user_data'] ) ? $row['user_data'] : array();
-		$extra    = array_intersect_key( $previous, array_flip( array( 'discount_code', 'customer_context', 'channel' ) ) );
+		$extra    = array_intersect_key( $previous, array_flip( array( 'discount_code', 'customer_context', 'channel', 'call_language' ) ) );
 
 		return self::place_call(
 			$use_case,

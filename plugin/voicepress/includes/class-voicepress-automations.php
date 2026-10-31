@@ -879,6 +879,16 @@ class VoicePress_Automations {
 			);
 		}
 
+		// The language order calls will start in (customer preference → delivery state → default).
+		if ( class_exists( 'VoicePress_Languages' ) && VoicePress_Languages::is_multilingual() ) {
+			$code    = VoicePress_Languages::for_order( $order );
+			$title   = '' !== VoicePress_Languages::order_preference( $order ) ? __( 'Chosen by the customer', 'voicepress' ) : ( 'auto_state' === VoicePress_Languages::mode() ? __( 'From the delivery state, or your default language', 'voicepress' ) : __( 'Your default language', 'voicepress' ) );
+			$facts[] = array(
+				__( 'Call language', 'voicepress' ),
+				'<span class="vp-badge vp-badge--brand" lang="' . esc_attr( VoicePress_Languages::html_lang( $code ) ) . '" title="' . esc_attr( $title ) . '">' . esc_html( VoicePress_Languages::label( $code ) ) . '</span>',
+			);
+		}
+
 		$rating = (int) $order->get_meta( '_voicepress_rating' );
 		if ( $rating >= 1 && $rating <= 5 ) {
 			$facts[] = array(

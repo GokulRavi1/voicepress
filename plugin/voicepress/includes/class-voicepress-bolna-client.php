@@ -161,13 +161,15 @@ class VoicePress_Bolna_Client {
 	/**
 	 * POST /call — place an outbound call → {message, status: 'queued', execution_id}.
 	 *
-	 * @param string $agent_id  Agent id.
-	 * @param string $to        Recipient phone number, E.164.
-	 * @param array  $user_data Variables for the agent prompt ({{customer_name}} …). Sent only when non-empty.
-	 * @param string $from      Caller id from your Bolna account. Sent only when non-empty.
+	 * @param string $agent_id   Agent id.
+	 * @param string $to         Recipient phone number, E.164.
+	 * @param array  $user_data  Variables for the agent prompt ({{customer_name}} …). Sent only when non-empty.
+	 * @param string $from       Caller id from your Bolna account. Sent only when non-empty.
+	 * @param array  $agent_data Per-call agent overrides, e.g. ['language' => 'ta'] to start a multilingual
+	 *                           agent in Tamil. Sent only when non-empty (Bolna rejects it on single-language agents).
 	 * @return array|WP_Error
 	 */
-	public function make_call( $agent_id, $to, array $user_data = array(), $from = '' ) {
+	public function make_call( $agent_id, $to, array $user_data = array(), $from = '', array $agent_data = array() ) {
 		$agent_id = trim( (string) $agent_id );
 		$to       = trim( (string) $to );
 		if ( '' === $agent_id ) {
@@ -186,6 +188,9 @@ class VoicePress_Bolna_Client {
 		}
 		if ( ! empty( $user_data ) ) {
 			$body['user_data'] = $user_data;
+		}
+		if ( ! empty( $agent_data ) ) {
+			$body['agent_data'] = $agent_data;
 		}
 		return $this->request( 'POST', '/call', $body );
 	}
@@ -328,23 +333,24 @@ class VoicePress_Bolna_Client {
 	 * POST /web-call/session — mint a browser (WebRTC/SIP) session for the Bolna Web Call SDK.
 	 * Returns {run_id, agent_id, sip_username, sip_password, sip_domain, wss_url, sip_register, expires_in, ice_servers} unchanged.
 	 *
-	 * @param string $agent_id  Agent id.
-	 * @param array  $user_data Variables for the agent prompt.
+	 * @param string $agent_id   Agent id.
+	 * @param array  $user_data  Variables for the agent prompt.
+	 * @param array  $agent_data Per-call agent overrides, e.g. ['language' => 'ta']. Sent only when non-empty.
 	 * @return array|WP_Error
 	 */
-	public function mint_web_session( $agent_id, array $user_data = array() ) {
+	public function mint_web_session( $agent_id, array $user_data = array(), array $agent_data = array() ) {
 		$agent_id = trim( (string) $agent_id );
 		if ( '' === $agent_id ) {
 			return $this->missing( 'agent id' );
 		}
-		return $this->request(
-			'POST',
-			'/web-call/session',
-			array(
-				'agent_id'  => $agent_id,
-				'user_data' => empty( $user_data ) ? new stdClass() : $user_data,
-			)
+		$body = array(
+			'agent_id'  => $agent_id,
+			'user_data' => empty( $user_data ) ? new stdClass() : $user_data,
 		);
+		if ( ! empty( $agent_data ) ) {
+			$body['agent_data'] = $agent_data;
+		}
+		return $this->request( 'POST', '/web-call/session', $body );
 	}
 
 	/* --------------------------------------------------------------- Recordings */
